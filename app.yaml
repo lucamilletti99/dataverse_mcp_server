@@ -1,0 +1,32 @@
+command: ["python", "-m", "server.app"]
+
+source_code_path: "."
+
+# Configure service principal scopes (for app's service principal)
+scopes:
+  - "all-apis"     # Required for model serving endpoints / Foundation Models
+  - "sql"          # SQL warehouses and query execution
+  - "files.files"  # DBFS files and directories
+  - "all"          # Full workspace access including secrets
+
+# Configure user authorization scopes (for on-behalf-of user calls)
+# Users must grant these permissions when they first use the app
+user_authorization:
+  scopes:
+    - scope: "all-apis"
+      description: "Access foundation models and serving endpoints on your behalf"
+    - scope: "sql"
+      description: "Execute SQL queries on your behalf"
+    - scope: "catalog"
+      description: "Access Unity Catalog resources including HTTP Connections"
+
+environment:
+  - name: DATABRICKS_HOST
+    value_from: workspace
+  - name: DATABRICKS_PATH
+    value_from: workspace
+  # Note: DATABRICKS_TOKEN (PAT) removed to avoid conflict with OAuth
+  # The app will use OAuth (service principal) credentials automatically
+  # and on-behalf-of user tokens from X-Forwarded-Access-Token header
+  - name: DATABRICKS_APP_PORT
+    value_from: app_port
