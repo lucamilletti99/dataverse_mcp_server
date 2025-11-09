@@ -257,20 +257,17 @@ mkdir -p build
 
 # Generate requirements.txt from pyproject.toml without editable installs
 print_timing "Starting requirements generation"
-echo "📦 Generating requirements.txt..."
-if [ "$VERBOSE" = true ]; then
-  echo "Using custom script to avoid editable installs..."
-fi
+echo "📦 Checking requirements.txt..."
 
-if ! uv run python scripts/generate_semver_requirements.py; then
-  echo "❌ Failed to generate requirements.txt"
-  echo "💡 Check if pyproject.toml exists and is valid"
-  echo "💡 Try running: uv run python scripts/generate_semver_requirements.py"
+# Check if requirements.txt exists
+if [ ! -f "requirements.txt" ]; then
+  echo "❌ requirements.txt not found!"
+  echo "💡 Please ensure requirements.txt exists in the project root"
   exit 1
 fi
 
-echo "✅ Requirements generated successfully"
-print_timing "Requirements generation completed"
+echo "✅ requirements.txt found"
+print_timing "Requirements check completed"
 
 # Build frontend
 print_timing "Starting frontend build"

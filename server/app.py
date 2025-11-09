@@ -9,12 +9,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastmcp import FastMCP
 
-from server.prompts import load_prompts
 from server.routers import router
-from server.routers.agent_chat import router as agent_router
-from server.routers.registry import router as registry_router
-from server.routers.db_resources import router as db_resources_router
-from server.tools import load_tools
+from server.dataverse_tools import load_dataverse_tools
+
+# WORKAROUND: Databricks Apps doesn't load app.yaml environment variables
+# Load Dataverse config from Python file instead
+try:
+    from dataverse_config import apply_dataverse_config
+    apply_dataverse_config()
+except ImportError:
+    pass  # dataverse_config.py not found, using environment variables
 
 
 # Load environment variables from .env.local if it exists
@@ -51,9 +55,8 @@ servername = config.get('servername', 'databricks-mcp')
 # Create MCP server
 mcp_server = FastMCP(name=servername)
 
-# Load prompts and tools
-load_prompts(mcp_server)
-load_tools(mcp_server)
+# Load Dataverse tools
+load_dataverse_tools(mcp_server)
 
 # Create ASGI app from MCP server
 # Passing no path automatically hosts this at the /mcp route
@@ -81,9 +84,6 @@ app.add_middleware(
 )
 
 app.include_router(router, prefix='/api', tags=['api'])
-app.include_router(agent_router, prefix='/api/agent', tags=['agent'])
-app.include_router(registry_router, prefix='/api/registry', tags=['registry'])
-app.include_router(db_resources_router, prefix='/api/db', tags=['database'])
 
 # ============================================================================
 # SERVE STATIC FILES FROM CLIENT BUILD DIRECTORY (MUST BE LAST!)

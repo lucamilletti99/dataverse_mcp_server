@@ -1,60 +1,78 @@
-"""User router for Databricks user information."""
+"""User router - simplified for Dataverse MCP Server."""
 
-from fastapi import APIRouter, HTTPException
+import os
+from fastapi import APIRouter, HTTPException, Header
 from pydantic import BaseModel
-
-from server.services.user_service import UserService
 
 router = APIRouter()
 
 
 class UserInfo(BaseModel):
-  """Databricks user information."""
+  """User information."""
 
   userName: str
   displayName: str | None = None
-  active: bool
-  emails: list[str] = []
-
-
-class UserWorkspaceInfo(BaseModel):
-  """User and workspace information."""
-
-  user: UserInfo
-  workspace: dict
+  active: bool = True
+  authMethod: str = 'unknown'
 
 
 @router.get('/me', response_model=UserInfo)
-async def get_current_user():
-  """Get current user information from Databricks."""
+async def get_current_user(
+  x_forwarded_access_token: str = Header(None, alias='X-Forwarded-Access-Token')
+):
+  """Get current user information.
+  
+  Returns user info from OBO token if available, otherwise returns service principal info.
+  """
   try:
-    service = UserService()
-    user_info = service.get_user_info()
-
-    return UserInfo(
-      userName=user_info['userName'],
-      displayName=user_info['displayName'],
-      active=user_info['active'],
-      emails=user_info['emails'],
-    )
+    # Check if running with OBO token
+    if x_forwarded_access_token:
+      # Try to get user info from Databricks
+      try:
+        from databricks.sdk import WorkspaceClient
+        from databricks.sdk.core import Config
+        
+        config = Config(
+          host=os.environ.get('DATABRICKS_HOST'),
+          token=x_forwarded_access_token,
+          auth_type='pat'
+        )
+        w = WorkspaceClient(config=config)
+        current_user = w.current_user.me()
+        
+        return UserInfo(
+          userName=current_user.user_name or 'unknown',
+          displayName=current_user.display_name,
+          active=current_user.active,
+          authMethod='on-behalf-of',
+        )
+      except Exception as e:
+        # Fallback if Databricks SDK not available or fails
+        return UserInfo(
+          userName='authenticated-user',
+          displayName='Authenticated User',
+          active=True,
+          authMethod='token',
+        )
+    else:
+      # No OBO token - running as service principal
+      return UserInfo(
+        userName='service-principal',
+        displayName='Dataverse MCP Server',
+        active=True,
+        authMethod='service-principal',
+      )
   except Exception as e:
-    raise HTTPException(status_code=500, detail=f'Failed to fetch user info: {str(e)}')
-
-
-@router.get('/me/workspace', response_model=UserWorkspaceInfo)
-async def get_user_workspace_info():
-  """Get user information along with workspace details."""
-  try:
-    service = UserService()
-    info = service.get_user_workspace_info()
-
-    return UserWorkspaceInfo(
-      user=UserInfo(
-        userName=info['user']['userName'],
-        displayName=info['user']['displayName'],
-        active=info['user']['active'],
-      ),
-      workspace=info['workspace'],
+    raise HTTPException(
+      status_code=500,
+      detail=f'Failed to get user info: {str(e)}'
     )
-  except Exception as e:
-    raise HTTPException(status_code=500, detail=f'Failed to fetch workspace info: {str(e)}')
+
+
+@router.get('/health')
+async def user_health():
+  """Health check for user router."""
+  return {
+    'status': 'healthy',
+    'service': 'user-info',
+  }

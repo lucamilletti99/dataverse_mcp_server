@@ -298,3 +298,4 @@ personal_resources/
 # Generated client
 client/src/client/test_api_registry.sh
 sync_repos.sh
+dataverse_config.py

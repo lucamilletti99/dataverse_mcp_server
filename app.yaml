@@ -1,32 +1,45 @@
+# Databricks App Configuration for Dataverse MCP Server
+# See: https://docs.databricks.com/en/dev-tools/databricks-apps/index.html
+
 command: ["python", "-m", "server.app"]
 
 source_code_path: "."
 
 # Configure service principal scopes (for app's service principal)
+# These are optional for Dataverse - the app primarily uses external OAuth to Dataverse
 scopes:
-  - "all-apis"     # Required for model serving endpoints / Foundation Models
-  - "sql"          # SQL warehouses and query execution
-  - "files.files"  # DBFS files and directories
-  - "all"          # Full workspace access including secrets
+  - "all-apis"     # Optional: Access to Databricks APIs if needed
+  - "sql"          # Optional: SQL warehouses if you want to log/cache to Databricks
 
 # Configure user authorization scopes (for on-behalf-of user calls)
-# Users must grant these permissions when they first use the app
+# These are optional for Dataverse MCP server
 user_authorization:
   scopes:
     - scope: "all-apis"
-      description: "Access foundation models and serving endpoints on your behalf"
-    - scope: "sql"
-      description: "Execute SQL queries on your behalf"
-    - scope: "catalog"
-      description: "Access Unity Catalog resources including HTTP Connections"
+      description: "Access Databricks APIs on your behalf (optional)"
 
 environment:
   - name: DATABRICKS_HOST
     value_from: workspace
   - name: DATABRICKS_PATH
     value_from: workspace
-  # Note: DATABRICKS_TOKEN (PAT) removed to avoid conflict with OAuth
-  # The app will use OAuth (service principal) credentials automatically
-  # and on-behalf-of user tokens from X-Forwarded-Access-Token header
   - name: DATABRICKS_APP_PORT
     value_from: app_port
+  - name: SERVERNAME
+    value: "dataverse-mcp-server"
+  # Dataverse credentials - configure via Databricks Secrets
+  # See setup_databricks_secrets.sh for instructions
+  # - name: DATAVERSE_HOST
+  #   value: ""  # Your Dataverse host URL
+  # - name: DATAVERSE_TENANT_ID
+  #   value: ""  # Your Azure AD tenant ID
+  # - name: DATAVERSE_CLIENT_ID
+  #   value: ""  # Your app registration client ID
+  # - name: DATAVERSE_CLIENT_SECRET
+  #   value: ""  # Your app registration client secret
+
+# SECURITY NOTE: Never commit actual credentials to git!
+# For production deployment:
+# 1. Use Databricks Secrets: Run ./setup_databricks_secrets.sh
+# 2. Or uncomment above and set values at deployment time (not recommended)
+# 3. Or use dataverse_config.py for local development only
