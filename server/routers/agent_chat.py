@@ -362,44 +362,48 @@ async def agent_chat(request: Request, chat_request: AgentChatRequest) -> AgentC
                         result = update_record_impl(**tool_args)
                     else:
                         result = {"success": False, "error": f"Unknown tool: {tool_name}"}
-                    
+
+                    # Anthropic Claude format for tool results
                     tool_results.append({
-                        "role": "tool",
-                        "tool_call_id": tool_call['id'],
-                        "content": str(result)
+                        "type": "tool_result",
+                        "tool_use_id": tool_call['id'],
+                        "content": json.dumps(result) if isinstance(result, dict) else str(result)
                     })
-                    
+
                     executed_tools.append({
                         "tool": tool_name,
                         "args": tool_args,
                         "result": result
                     })
-                    
+
                 except Exception as e:
+                    # Tool execution error
                     tool_results.append({
-                        "role": "tool",
-                        "tool_call_id": tool_call['id'],
-                        "content": f"Error executing tool: {str(e)}"
+                        "type": "tool_result",
+                        "tool_use_id": tool_call['id'],
+                        "content": json.dumps({"success": False, "error": str(e)})
                     })
-                    
+
                     executed_tools.append({
                         "tool": tool_name,
                         "args": tool_args,
                         "result": {"success": False, "error": str(e)}
                     })
             
-            # Send tool results back to model
-            # Note: If the model doesn't return content (only tool_calls), we need to handle that
+            # Send tool results back to model (Anthropic Claude format)
+            # First, add the assistant's message with tool_use blocks
             assistant_msg = {
                 "role": "assistant",
-                "tool_calls": message['tool_calls']
+                "content": message.get('content') or message['tool_calls']  # Claude needs content
             }
-            # Only include content if it's non-empty (API rejects empty strings)
-            if message.get('content'):
-                assistant_msg["content"] = message['content']
-            
+
             model_messages.append(assistant_msg)
-            model_messages.extend(tool_results)
+
+            # Then add tool results as a user message
+            model_messages.append({
+                "role": "user",
+                "content": tool_results  # Array of tool_result objects
+            })
             
             # Get final response from model
             try:
