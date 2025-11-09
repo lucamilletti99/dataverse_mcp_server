@@ -27,19 +27,30 @@ environment:
     value_from: app_port
   - name: SERVERNAME
     value: "dataverse-mcp-server"
-  # Dataverse credentials - configure via Databricks Secrets
-  # See setup_databricks_secrets.sh for instructions
-  # - name: DATAVERSE_HOST
-  #   value: ""  # Your Dataverse host URL
-  # - name: DATAVERSE_TENANT_ID
-  #   value: ""  # Your Azure AD tenant ID
-  # - name: DATAVERSE_CLIENT_ID
-  #   value: ""  # Your app registration client ID
-  # - name: DATAVERSE_CLIENT_SECRET
-  #   value: ""  # Your app registration client secret
 
+# ==============================================================================
+# Dataverse Credentials Configuration
+# ==============================================================================
+#
+# The app automatically reads credentials from Databricks Secrets scope 'dataverse'
+# when running in Databricks Apps. No configuration needed in this file!
+#
+# Setup instructions:
+# 1. Run: ./setup_databricks_secrets.sh
+#    This creates the 'dataverse' scope and stores your credentials
+#
+# 2. Deploy: ./deploy.sh --create
+#    The app service principal will automatically read from the secrets
+#
+# The code checks credentials in this order:
+#   1. Environment variables (for local dev with .env.local)
+#   2. Databricks Secrets scope 'dataverse' (for production)
+#
+# Secret keys in 'dataverse' scope:
+#   - host           (DATAVERSE_HOST)
+#   - tenant_id      (DATAVERSE_TENANT_ID)
+#   - client_id      (DATAVERSE_CLIENT_ID)
+#   - client_secret  (DATAVERSE_CLIENT_SECRET)
+#
 # SECURITY NOTE: Never commit actual credentials to git!
-# For production deployment:
-# 1. Use Databricks Secrets: Run ./setup_databricks_secrets.sh
-# 2. Or uncomment above and set values at deployment time (not recommended)
-# 3. Or use dataverse_config.py for local development only
+# ==============================================================================

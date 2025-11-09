@@ -7,6 +7,29 @@ from typing import Dict, Optional
 import requests
 
 
+def get_databricks_secret(scope: str, key: str) -> Optional[str]:
+  """Get secret from Databricks Secrets (when running in Databricks Apps).
+
+  Args:
+      scope: Secret scope name (e.g., 'dataverse')
+      key: Secret key name (e.g., 'host')
+
+  Returns:
+      Secret value or None if not found/not in Databricks
+  """
+  try:
+    from databricks.sdk import WorkspaceClient
+
+    # Get workspace client (uses service principal when in Databricks Apps)
+    w = WorkspaceClient()
+    secret = w.secrets.get_secret(scope=scope, key=key)
+    return secret.value
+  except Exception as e:
+    # Not in Databricks or secret not found
+    print(f"   ℹ️  Could not read Databricks secret {scope}/{key}: {e}")
+    return None
+
+
 class DataverseAuth:
   """Handle OAuth authentication for Dataverse API using Service Principal (M2M).
   
@@ -31,11 +54,45 @@ class DataverseAuth:
         client_secret: App registration client secret (or from env DATAVERSE_CLIENT_SECRET)
         dataverse_host: Dataverse environment URL (or from env DATAVERSE_HOST)
     """
-    # Get credentials from environment variables or parameters
-    self.tenant_id = tenant_id or os.environ.get('DATAVERSE_TENANT_ID')
-    self.client_id = client_id or os.environ.get('DATAVERSE_CLIENT_ID')
-    self.client_secret = client_secret or os.environ.get('DATAVERSE_CLIENT_SECRET')
-    self.dataverse_host = dataverse_host or os.environ.get('DATAVERSE_HOST')
+    # Get credentials from (in order of priority):
+    # 1. Function parameters
+    # 2. Environment variables
+    # 3. Databricks Secrets scope 'dataverse' (when running in Databricks Apps)
+
+    print("🔐 Loading Dataverse credentials...")
+
+    # Try environment variables first (for local dev)
+    self.dataverse_host = (
+      dataverse_host or
+      os.environ.get('DATAVERSE_HOST') or
+      get_databricks_secret('dataverse', 'host')
+    )
+
+    self.tenant_id = (
+      tenant_id or
+      os.environ.get('DATAVERSE_TENANT_ID') or
+      get_databricks_secret('dataverse', 'tenant_id')
+    )
+
+    self.client_id = (
+      client_id or
+      os.environ.get('DATAVERSE_CLIENT_ID') or
+      get_databricks_secret('dataverse', 'client_id')
+    )
+
+    self.client_secret = (
+      client_secret or
+      os.environ.get('DATAVERSE_CLIENT_SECRET') or
+      get_databricks_secret('dataverse', 'client_secret')
+    )
+
+    # Log where credentials came from (without revealing values)
+    if dataverse_host or os.environ.get('DATAVERSE_HOST'):
+      print("   ✅ Loaded credentials from environment variables")
+    elif self.dataverse_host:
+      print("   ✅ Loaded credentials from Databricks Secrets (scope: dataverse)")
+    else:
+      print("   ⚠️  No credentials found")
 
     if not all([self.tenant_id, self.client_id, self.client_secret, self.dataverse_host]):
       raise ValueError(

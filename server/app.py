@@ -12,13 +12,18 @@ from fastmcp import FastMCP
 from server.routers import router
 from server.dataverse_tools import load_dataverse_tools
 
-# WORKAROUND: Databricks Apps doesn't load app.yaml environment variables
-# Load Dataverse config from Python file instead
+# Optional: Load Dataverse config from Python file (for local dev)
+# When running in Databricks Apps, credentials are loaded from Databricks Secrets
 try:
     from dataverse_config import apply_dataverse_config
     apply_dataverse_config()
+    print("ℹ️  Loaded configuration from dataverse_config.py")
 except ImportError:
-    pass  # dataverse_config.py not found, using environment variables
+    # dataverse_config.py not found - this is fine
+    # Credentials will be loaded from:
+    # 1. .env.local (local dev)
+    # 2. Databricks Secrets scope 'dataverse' (production)
+    pass
 
 
 # Load environment variables from .env.local if it exists
