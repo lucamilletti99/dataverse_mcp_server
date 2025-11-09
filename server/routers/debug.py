@@ -84,40 +84,21 @@ async def debug_test_dataverse(authorized: bool = Header(default=verify_debug_ke
         }
 
 
-# Simple in-memory log capture
-recent_requests = []
-MAX_LOGS = 50
+@router.get('/app-status')
+async def get_app_status():
+    """Get application status and basic diagnostics."""
+    import sys
 
-
-@router.middleware("http")
-async def log_requests(request: Request, call_next):
-    """Capture recent requests for debugging."""
-    import time
-    start_time = time.time()
-
-    response = await call_next(request)
-
-    process_time = time.time() - start_time
-
-    recent_requests.append({
-        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "method": request.method,
-        "path": request.url.path,
-        "status_code": response.status_code,
-        "duration_ms": round(process_time * 1000, 2)
-    })
-
-    # Keep only recent logs
-    if len(recent_requests) > MAX_LOGS:
-        recent_requests.pop(0)
-
-    return response
-
-
-@router.get('/recent-requests')
-async def get_recent_requests():
-    """Get recent API requests for debugging (no auth required in browser)."""
     return {
-        "total": len(recent_requests),
-        "requests": recent_requests[-20:]  # Last 20 requests
+        "status": "running",
+        "python_version": sys.version,
+        "endpoints_available": [
+            "/api/health",
+            "/api/user/me",
+            "/api/chat/models",
+            "/api/agent/chat",
+            "/api/debug/get-token",
+            "/api/debug/app-status"
+        ],
+        "message": "Application is running normally"
     }
