@@ -1,7 +1,7 @@
 """Debug router - temporary endpoint for testing without OAuth."""
 
 import os
-from fastapi import APIRouter, HTTPException, Header
+from fastapi import APIRouter, HTTPException, Header, Request
 from typing import Optional
 
 router = APIRouter()
@@ -18,12 +18,33 @@ def verify_debug_key(x_debug_key: Optional[str] = Header(None)):
 
 
 @router.get('/test')
-async def debug_test(authorized: bool = Header(default=verify_debug_key)):
+async def debug_test():
     """Simple test endpoint to verify debug access."""
     return {
         "status": "ok",
         "message": "Debug endpoint is working",
         "debug_mode": True
+    }
+
+
+@router.get('/get-token')
+async def get_access_token(request: Request):
+    """Get the X-Forwarded-Access-Token from request headers.
+
+    This allows remote testing by extracting the OAuth token that
+    Databricks Apps automatically adds to requests.
+
+    Returns:
+        Dictionary with the access token (if available)
+    """
+    # Get the token from request headers (Databricks adds this automatically)
+    access_token = request.headers.get('X-Forwarded-Access-Token')
+
+    return {
+        "status": "ok",
+        "has_token": bool(access_token),
+        "access_token": access_token if access_token else None,
+        "message": "Use this token to make authenticated requests for testing"
     }
 
 
