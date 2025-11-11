@@ -218,7 +218,21 @@ export function ChatPage() {
             API Registry Playground
           </span>
         </div>
-        <div>
+        <div className="flex items-center gap-2">
+          {messages.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setMessages([])}
+              className={`${
+                isDark
+                  ? "bg-black/20 border-white/20 text-white hover:bg-black/30"
+                  : "bg-white border-gray-300 text-gray-900 hover:bg-gray-100"
+              }`}
+            >
+              Clear Chat
+            </Button>
+          )}
           <Select value={selectedModel} onValueChange={setSelectedModel}>
             <SelectTrigger className={`w-[240px] ${
               isDark
