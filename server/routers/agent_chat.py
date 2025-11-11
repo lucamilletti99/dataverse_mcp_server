@@ -181,6 +181,14 @@ async def agent_chat(request: Request, chat_request: AgentChatRequest) -> AgentC
         # Create trace
         trace_storage.create_trace(trace_id, user_message)
 
+        # Create top-level AGENT span to wrap the entire execution
+        agent_span_id = trace_storage.add_span(
+            trace_id=trace_id,
+            span_type="AGENT",
+            name="Agent Chat",
+            inputs={"user_question": user_message}
+        )
+
         # Get Databricks token for API calls
         db_token = get_databricks_token(request)
 
@@ -351,7 +359,8 @@ async def agent_chat(request: Request, chat_request: AgentChatRequest) -> AgentC
                 "user_question": user_question,
                 "model": chat_request.model,
                 "available_tools": [t['function']['name'] for t in tools]
-            }
+            },
+            parent_id=agent_span_id
         )
 
         try:
@@ -518,7 +527,8 @@ async def agent_chat(request: Request, chat_request: AgentChatRequest) -> AgentC
                 trace_id=trace_id,
                 span_type="LLM",
                 name=f"llm/serving-endpoints/{chat_request.model}/invocations (final)",
-                inputs=tool_results_summary
+                inputs=tool_results_summary,
+                parent_id=agent_span_id
             )
 
             try:
@@ -558,34 +568,65 @@ async def agent_chat(request: Request, chat_request: AgentChatRequest) -> AgentC
                 )
             
             final_message = final_response['choices'][0]['message']
+            final_response_text = final_message.get('content') or "I apologize, but I couldn't generate a response."
+
+            # Complete agent span with final response
+            trace_storage.complete_span(
+                trace_id=trace_id,
+                span_id=agent_span_id,
+                outputs={"response": final_response_text},
+                status="OK"
+            )
 
             # Complete trace successfully
             trace_storage.complete_trace(trace_id, status="OK")
 
             return AgentChatResponse(
-                response=final_message.get('content') or "I apologize, but I couldn't generate a response.",
+                response=final_response_text,
                 tool_calls=executed_tools,
                 trace_id=trace_id
             )
         else:
             # No tool calls, just return the response
+            direct_response = message.get('content') or "I apologize, but I couldn't generate a response."
+
+            # Complete agent span with direct response
+            trace_storage.complete_span(
+                trace_id=trace_id,
+                span_id=agent_span_id,
+                outputs={"response": direct_response},
+                status="OK"
+            )
+
             # Complete trace successfully
             trace_storage.complete_trace(trace_id, status="OK")
 
             return AgentChatResponse(
-                response=message.get('content') or "I apologize, but I couldn't generate a response.",
+                response=direct_response,
                 tool_calls=None,
                 trace_id=trace_id
             )
 
     except HTTPException as e:
-        # Complete trace with error
-        if 'trace_id' in locals():
+        # Complete agent span and trace with error
+        if 'trace_id' in locals() and 'agent_span_id' in locals():
+            trace_storage.complete_span(
+                trace_id=trace_id,
+                span_id=agent_span_id,
+                outputs={"error": str(e)},
+                status="ERROR"
+            )
             trace_storage.complete_trace(trace_id, status="ERROR")
         raise
     except Exception as e:
-        # Complete trace with error
-        if 'trace_id' in locals():
+        # Complete agent span and trace with error
+        if 'trace_id' in locals() and 'agent_span_id' in locals():
+            trace_storage.complete_span(
+                trace_id=trace_id,
+                span_id=agent_span_id,
+                outputs={"error": str(e)},
+                status="ERROR"
+            )
             trace_storage.complete_trace(trace_id, status="ERROR")
         raise HTTPException(
             status_code=500,
