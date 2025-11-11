@@ -342,10 +342,24 @@ async def agent_chat(request: Request, chat_request: AgentChatRequest) -> AgentC
         ]
         
         # Prepare messages for the model
-        model_messages = [
-            {"role": msg.role, "content": msg.content}
-            for msg in chat_request.messages
-        ]
+        # Skip any "tool" role messages and assistant messages with tool_calls
+        # (legacy from old frontend code that executed tools client-side)
+        model_messages = []
+        for msg in chat_request.messages:
+            if msg.role == "tool":
+                # Skip tool messages - these are from old frontend code
+                print(f"⚠️  Skipping legacy 'tool' role message from conversation history")
+                continue
+
+            # Build the message dict
+            msg_dict = {"role": msg.role, "content": msg.content}
+
+            # Check if this is an assistant message with tool_calls from old frontend
+            if msg.role == "assistant" and hasattr(msg, 'tool_calls') and msg.tool_calls:
+                print(f"⚠️  Skipping assistant message with tool_calls from old frontend code")
+                continue
+
+            model_messages.append(msg_dict)
 
         # Use a MINIMAL system prompt - let tool descriptions do the work
         system_message = {
