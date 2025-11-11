@@ -175,7 +175,8 @@ async def agent_chat(request: Request, chat_request: AgentChatRequest) -> AgentC
     # Initialize tracing
     trace_storage = get_trace_storage()
     trace_id = str(uuid.uuid4())
-    user_message = chat_request.messages[-1].content if chat_request.messages else ""
+    # Get user message and strip newlines/whitespace
+    user_message = (chat_request.messages[-1].content if chat_request.messages else "").strip()
 
     try:
         # Create trace
@@ -499,10 +500,20 @@ async def agent_chat(request: Request, chat_request: AgentChatRequest) -> AgentC
                     })
             
             # Send tool results back to model in Anthropic Claude format
-            # First, add the assistant's message with tool_calls
+            # Convert OpenAI tool_calls format to Anthropic tool_use format
+            tool_use_blocks = []
+            for tool_call in message['tool_calls']:
+                tool_use_blocks.append({
+                    "type": "tool_use",
+                    "id": tool_call['id'],
+                    "name": tool_call['function']['name'],
+                    "input": json.loads(tool_call['function']['arguments']) if isinstance(tool_call['function']['arguments'], str) else tool_call['function']['arguments']
+                })
+
+            # Add the assistant's message with tool_use blocks
             assistant_msg = {
                 "role": "assistant",
-                "content": message['tool_calls']  # In Anthropic format, tool_calls go in content
+                "content": tool_use_blocks
             }
 
             model_messages.append(assistant_msg)
