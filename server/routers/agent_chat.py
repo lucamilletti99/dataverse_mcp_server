@@ -464,10 +464,9 @@ async def agent_chat(request: Request, chat_request: AgentChatRequest) -> AgentC
                         status="OK"
                     )
 
-                    # Anthropic Claude format for tool results
+                    # Store tool result for sending back to model
                     tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": tool_call['id'],
+                        "tool_call_id": tool_call['id'],
                         "content": json.dumps(result) if isinstance(result, dict) else str(result)
                     })
 
@@ -486,10 +485,9 @@ async def agent_chat(request: Request, chat_request: AgentChatRequest) -> AgentC
                         status="ERROR"
                     )
 
-                    # Tool execution error
+                    # Tool execution error - store result for sending back to model
                     tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": tool_call['id'],
+                        "tool_call_id": tool_call['id'],
                         "content": json.dumps({"success": False, "error": str(e)})
                     })
 
@@ -499,13 +497,21 @@ async def agent_chat(request: Request, chat_request: AgentChatRequest) -> AgentC
                         "result": {"success": False, "error": str(e)}
                     })
             
-            # Send tool results back to model in Anthropic format
-            # The API returned tool_use blocks in the assistant message content,
-            # so we need to send tool_result blocks in a user message content array
+            # Send tool results back to model in OpenAI format
+            # First, add the assistant's message with tool_calls
             model_messages.append({
-                "role": "user",
-                "content": tool_results  # Array of tool_result blocks
+                "role": "assistant",
+                "content": message.get('content') or "",
+                "tool_calls": message['tool_calls']
             })
+
+            # Then add tool results as separate "tool" role messages
+            for tool_result in tool_results:
+                model_messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_result['tool_call_id'],
+                    "content": tool_result['content']
+                })
             
             # Get final response from model with tracing
             # For the final call, show tool results summary as input
