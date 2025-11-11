@@ -113,6 +113,7 @@ export function ChatPage() {
     setLoading(true);
 
     try {
+      // Backend handles all tool execution - just send the message and get the final response
       const response = await fetch("/api/chat/message", {
         method: "POST",
         headers: {
@@ -135,72 +136,23 @@ export function ChatPage() {
           ...prev,
           {
             role: "assistant",
-            content: `Error: ${data.detail}`,
+            content: `Sorry, I encountered an error: ${data.detail}`,
           },
         ]);
         return;
       }
 
-      if (data.tool_calls && data.tool_calls.length > 0) {
-        const toolResults: ToolResult[] = [];
-
-        for (const toolCall of data.tool_calls) {
-          const toolArgs = JSON.parse(toolCall.function.arguments);
-          const result = await executeTool(toolCall.function.name, toolArgs);
-          toolResults.push({
-            tool_name: toolCall.function.name,
-            result: result,
-          });
-        }
-
-        const assistantToolMessage: Message = {
+      // Add the assistant's response
+      setMessages((prev) => [
+        ...prev,
+        {
           role: "assistant",
-          content: data.content || "Using tools...",
-          tool_calls: data.tool_calls,
-        };
-        setMessages((prev) => [...prev, assistantToolMessage]);
-
-        const toolResultsContent = toolResults
-          .map((tr) => `Tool ${tr.tool_name} returned: ${JSON.stringify(tr.result)}`)
-          .join("\n\n");
-
-        const finalResponse = await fetch("/api/chat/message", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            messages: [
-              ...messages,
-              userMessage,
-              {
-                role: "assistant",
-                content: `I used the following tools:\n\n${toolResultsContent}`,
-              },
-            ],
-            model: selectedModel,
-          }),
-        });
-
-        const finalData = await finalResponse.json();
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content: finalData.content,
-          },
-        ]);
-      } else {
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content: data.content,
-          },
-        ]);
-      }
+          content: data.content || "I processed your request.",
+        },
+      ]);
     } catch (error) {
       console.error("Failed to send message:", error);
+      setMessages((prev) => prev.slice(0, -1)); // Remove "Thinking..." message
       setMessages((prev) => [
         ...prev,
         {
