@@ -498,26 +498,20 @@ async def agent_chat(request: Request, chat_request: AgentChatRequest) -> AgentC
                         "result": {"success": False, "error": str(e)}
                     })
             
-            # Send tool results back to model
+            # Send tool results back to model in Anthropic Claude format
             # First, add the assistant's message with tool_calls
             assistant_msg = {
                 "role": "assistant",
-                "tool_calls": message['tool_calls']
+                "content": message['tool_calls']  # In Anthropic format, tool_calls go in content
             }
-            # Only include content if it's non-empty (API requires non-empty text blocks)
-            content = message.get('content')
-            if content:
-                assistant_msg["content"] = content
 
             model_messages.append(assistant_msg)
 
-            # Then add tool results as tool messages (one per tool call)
-            for tool_result in tool_results:
-                model_messages.append({
-                    "role": "tool",
-                    "tool_call_id": tool_result['tool_use_id'],
-                    "content": tool_result['content']
-                })
+            # Then add tool results in a user message with content blocks (Anthropic format)
+            model_messages.append({
+                "role": "user",
+                "content": tool_results  # Array of tool_result blocks
+            })
             
             # Get final response from model with tracing
             # For the final call, show tool results summary as input
