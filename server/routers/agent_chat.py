@@ -361,6 +361,42 @@ async def run_agent_loop(
     }
 
 
+@router.get('/models')
+async def list_available_models() -> Dict[str, Any]:
+    """List available Databricks Foundation Models for the chat interface."""
+    models = [
+        {
+            'id': 'databricks-claude-sonnet-4',
+            'name': 'Claude Sonnet 4',
+            'provider': 'Anthropic',
+            'supports_tools': True,
+            'context_window': 200000,
+            'type': 'chat'
+        },
+        {
+            'id': 'databricks-claude-3.7-sonnet',
+            'name': 'Claude 3.7 Sonnet',
+            'provider': 'Anthropic',
+            'supports_tools': True,
+            'context_window': 200000,
+            'type': 'chat'
+        },
+        {
+            'id': 'databricks-meta-llama-3-1-405b-instruct',
+            'name': 'Llama 3.1 405B Instruct',
+            'provider': 'Meta',
+            'supports_tools': True,
+            'context_window': 128000,
+            'type': 'chat'
+        },
+    ]
+
+    return {
+        'models': models,
+        'default': 'databricks-claude-sonnet-4'
+    }
+
+
 @router.post("/message", response_model=AgentChatResponse)
 async def agent_chat(chat_request: AgentChatRequest, request: Request):
     """Agent chat endpoint - runs full agentic loop server-side."""
