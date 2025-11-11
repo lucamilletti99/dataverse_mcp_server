@@ -147,7 +147,7 @@ export function ChatPage() {
         ...prev,
         {
           role: "assistant",
-          content: data.content || "I processed your request.",
+          content: data.response || data.content || "I processed your request.",
         },
       ]);
     } catch (error) {
