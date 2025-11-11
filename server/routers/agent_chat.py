@@ -138,6 +138,12 @@ def call_foundation_model(
     print(f"   Messages: {len(messages)} messages")
     print(f"   Tools: {len(tools)} tools available")
     print(f"   Tool names: {[t['function']['name'] for t in tools]}")
+    print(f"   Message details:")
+    for i, msg in enumerate(messages):
+        role = msg.get('role')
+        content_preview = str(msg.get('content', ''))[:100] if msg.get('content') else '[no content]'
+        tool_calls = msg.get('tool_calls', [])
+        print(f"     {i+1}. role={role}, content={content_preview}, tool_calls={len(tool_calls) if tool_calls else 0}")
 
     try:
         response = requests.post(url, headers=headers, json=payload, timeout=120)
