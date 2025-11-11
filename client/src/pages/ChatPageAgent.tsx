@@ -103,7 +103,7 @@ export function ChatPageAgent({ onViewTrace }: ChatPageAgentProps) {
 
     try {
       // Call the agent chat API
-      const response = await fetch("/api/agent/chat", {
+      const response = await fetch("/api/chat/message", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
