@@ -502,9 +502,12 @@ async def agent_chat(request: Request, chat_request: AgentChatRequest) -> AgentC
             # First, add the assistant's message with tool_calls
             assistant_msg = {
                 "role": "assistant",
-                "content": message.get('content') or "",
                 "tool_calls": message['tool_calls']
             }
+            # Only include content if it's non-empty (API requires non-empty text blocks)
+            content = message.get('content')
+            if content:
+                assistant_msg["content"] = content
 
             model_messages.append(assistant_msg)
 
