@@ -110,23 +110,37 @@ def describe_table_impl(table_name: str) -> dict:
     }
 
 
-def read_query_impl(table_name: str, fetch_xml: str) -> dict:
-  """Implementation of read_query tool."""
+def read_query_impl(
+  table_name: str,
+  select: List[str] = None,
+  filter_query: str = None,
+  order_by: str = None,
+  top: int = 100,
+) -> dict:
+  """Implementation of read_query tool using OData (simpler than FetchXML)."""
   try:
     client = get_dataverse_client()
-    
+
     # Get entity set name
     entity_set_name = client.get_entity_set_name(table_name)
-    
-    # Query with FetchXML
-    result = client.query_fetchxml(entity_set_name, fetch_xml)
+
+    # Query with OData
+    result = client.read_query(
+      entity_set_name=entity_set_name,
+      select=select,
+      filter_query=filter_query,
+      order_by=order_by,
+      top=top,
+    )
     records = result.get('value', [])
-    
+
     return {
       'success': True,
       'table_name': table_name,
+      'entity_set_name': entity_set_name,
       'records': records,
       'count': len(records),
+      'message': f'Retrieved {len(records)} record(s) from {table_name}',
     }
   except Exception as e:
     return {

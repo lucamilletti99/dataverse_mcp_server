@@ -2,6 +2,8 @@
 
 import json
 import os
+import time
+import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -10,6 +12,8 @@ from databricks.sdk import WorkspaceClient
 from databricks.sdk.core import Config
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
+
+from server.trace_storage import get_trace_storage
 
 router = APIRouter()
 
@@ -58,8 +62,8 @@ class AgentChatRequest(BaseModel):
 class AgentChatResponse(BaseModel):
     """Agent chat response model."""
     response: str
-    tool_calls: Optional[List[Dict[str, Any]]] = None
     trace_id: Optional[str] = None
+    tool_calls: Optional[List[Dict[str, Any]]] = None
 
 
 def get_databricks_client(request: Request) -> WorkspaceClient:
@@ -127,7 +131,14 @@ def call_foundation_model(
         "temperature": temperature,
         "max_tokens": max_tokens,
     }
-    
+
+    # Debug: log the request
+    print(f"🔍 Foundation Model Request:")
+    print(f"   Model: {model_name}")
+    print(f"   Messages: {len(messages)} messages")
+    print(f"   Tools: {len(tools)} tools available")
+    print(f"   Tool names: {[t['function']['name'] for t in tools]}")
+
     try:
         response = requests.post(url, headers=headers, json=payload, timeout=120)
         response.raise_for_status()
@@ -147,7 +158,7 @@ def call_foundation_model(
 @router.post('/chat', response_model=AgentChatResponse)
 async def agent_chat(request: Request, chat_request: AgentChatRequest) -> AgentChatResponse:
     """Handle agent chat requests with Databricks Foundation Models.
-    
+
     This endpoint:
     1. Receives chat messages from the frontend
     2. Calls Databricks Foundation Model with tool definitions
@@ -161,17 +172,25 @@ async def agent_chat(request: Request, chat_request: AgentChatRequest) -> AgentC
     Returns:
         AgentChatResponse with assistant's response and metadata
     """
+    # Initialize tracing
+    trace_storage = get_trace_storage()
+    trace_id = str(uuid.uuid4())
+    user_message = chat_request.messages[-1].content if chat_request.messages else ""
+
     try:
+        # Create trace
+        trace_storage.create_trace(trace_id, user_message)
+
         # Get Databricks token for API calls
         db_token = get_databricks_token(request)
-        
+
         # Validate token
         if not db_token:
             raise HTTPException(
                 status_code=401,
                 detail="No Databricks authentication token available"
             )
-        
+
         # Import tool implementations
         from server.dataverse_tools import (
             list_tables_impl,
@@ -228,7 +247,7 @@ async def agent_chat(request: Request, chat_request: AgentChatRequest) -> AgentC
                 "type": "function",
                 "function": {
                     "name": "read_query",
-                    "description": "Query records from a Dataverse table using FetchXML. Retrieve data from a table using a FetchXML query.",
+                    "description": "Query records from a Dataverse table using simple OData syntax. Retrieve data with optional filtering, sorting, and column selection. Much simpler than FetchXML - just specify columns and filters!",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -236,12 +255,26 @@ async def agent_chat(request: Request, chat_request: AgentChatRequest) -> AgentC
                                 "type": "string",
                                 "description": "Logical name of the table (e.g., 'account', 'contact')"
                             },
-                            "fetch_xml": {
+                            "select": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "List of column names to return (e.g., ['name', 'emailaddress1']). Leave empty to return all columns."
+                            },
+                            "filter_query": {
                                 "type": "string",
-                                "description": "The FetchXML query string"
+                                "description": "OData filter expression (e.g., 'statecode eq 0', 'revenue gt 100000'). Leave empty for no filtering."
+                            },
+                            "order_by": {
+                                "type": "string",
+                                "description": "OData orderby expression (e.g., 'name asc', 'createdon desc')"
+                            },
+                            "top": {
+                                "type": "integer",
+                                "description": "Maximum number of records to return (default: 100)",
+                                "default": 100
                             }
                         },
-                        "required": ["table_name", "fetch_xml"]
+                        "required": ["table_name"]
                     }
                 }
             },
@@ -298,16 +331,29 @@ async def agent_chat(request: Request, chat_request: AgentChatRequest) -> AgentC
             {"role": msg.role, "content": msg.content}
             for msg in chat_request.messages
         ]
-        
-        # Add system message with Dataverse context (loaded from file)
-        system_prompt_content = load_system_prompt()
+
+        # Use a MINIMAL system prompt - let tool descriptions do the work
         system_message = {
             "role": "system",
-            "content": system_prompt_content
+            "content": "You are a helpful assistant with access to Dataverse data. Use the available tools to answer user questions with actual data."
         }
         model_messages.insert(0, system_message)
         
-        # Call Databricks Foundation Model
+        # Call Databricks Foundation Model with tracing
+        # For the input, only show the user's actual question (last user message)
+        user_question = chat_request.messages[-1].content if chat_request.messages else ""
+
+        llm_span_id = trace_storage.add_span(
+            trace_id=trace_id,
+            span_type="LLM",
+            name=f"llm/serving-endpoints/{chat_request.model}/invocations",
+            inputs={
+                "user_question": user_question,
+                "model": chat_request.model,
+                "available_tools": [t['function']['name'] for t in tools]
+            }
+        )
+
         try:
             response = call_foundation_model(
                 model_name=chat_request.model,
@@ -317,7 +363,36 @@ async def agent_chat(request: Request, chat_request: AgentChatRequest) -> AgentC
                 max_tokens=chat_request.max_tokens,
                 token=db_token,
             )
+
+            # Complete LLM span
+            # Extract the actual message content or tool calls decision
+            message = response.get('choices', [{}])[0].get('message', {})
+            if message.get('tool_calls'):
+                # If model decided to call tools, show that decision
+                output_summary = {
+                    "decision": "call_tools",
+                    "tools_to_call": [tc['function']['name'] for tc in message['tool_calls']],
+                    "reasoning": message.get('content', '')
+                }
+            else:
+                # If model gave a direct response, show just the text
+                output_summary = {
+                    "response": message.get('content', '')
+                }
+
+            trace_storage.complete_span(
+                trace_id=trace_id,
+                span_id=llm_span_id,
+                outputs=output_summary,
+                status="OK"
+            )
         except Exception as e:
+            trace_storage.complete_span(
+                trace_id=trace_id,
+                span_id=llm_span_id,
+                outputs={"error": str(e)},
+                status="ERROR"
+            )
             raise HTTPException(
                 status_code=500,
                 detail=f"Error calling Databricks Foundation Model: {str(e)}"
@@ -348,7 +423,15 @@ async def agent_chat(request: Request, chat_request: AgentChatRequest) -> AgentC
                     except json.JSONDecodeError:
                         tool_args = {}
                 
-                # Execute the tool
+                # Execute the tool with tracing
+                tool_span_id = trace_storage.add_span(
+                    trace_id=trace_id,
+                    span_type="TOOL",
+                    name=tool_name,
+                    inputs={"arguments": tool_args},
+                    parent_id=llm_span_id
+                )
+
                 try:
                     if tool_name == "list_tables":
                         result = list_tables_impl(**tool_args)
@@ -362,6 +445,14 @@ async def agent_chat(request: Request, chat_request: AgentChatRequest) -> AgentC
                         result = update_record_impl(**tool_args)
                     else:
                         result = {"success": False, "error": f"Unknown tool: {tool_name}"}
+
+                    # Complete tool span
+                    trace_storage.complete_span(
+                        trace_id=trace_id,
+                        span_id=tool_span_id,
+                        outputs=result,
+                        status="OK"
+                    )
 
                     # Anthropic Claude format for tool results
                     tool_results.append({
@@ -377,6 +468,14 @@ async def agent_chat(request: Request, chat_request: AgentChatRequest) -> AgentC
                     })
 
                 except Exception as e:
+                    # Complete tool span with error
+                    trace_storage.complete_span(
+                        trace_id=trace_id,
+                        span_id=tool_span_id,
+                        outputs={"error": str(e)},
+                        status="ERROR"
+                    )
+
                     # Tool execution error
                     tool_results.append({
                         "type": "tool_result",
@@ -390,22 +489,38 @@ async def agent_chat(request: Request, chat_request: AgentChatRequest) -> AgentC
                         "result": {"success": False, "error": str(e)}
                     })
             
-            # Send tool results back to model (Anthropic Claude format)
-            # First, add the assistant's message with tool_use blocks
+            # Send tool results back to model
+            # First, add the assistant's message with tool_calls
             assistant_msg = {
                 "role": "assistant",
-                "content": message.get('content') or message['tool_calls']  # Claude needs content
+                "content": message.get('content') or "",
+                "tool_calls": message['tool_calls']
             }
 
             model_messages.append(assistant_msg)
 
-            # Then add tool results as a user message
-            model_messages.append({
-                "role": "user",
-                "content": tool_results  # Array of tool_result objects
-            })
+            # Then add tool results as tool messages (one per tool call)
+            for tool_result in tool_results:
+                model_messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_result['tool_use_id'],
+                    "content": tool_result['content']
+                })
             
-            # Get final response from model
+            # Get final response from model with tracing
+            # For the final call, show tool results summary as input
+            tool_results_summary = {
+                "tools_executed": [tc['tool'] for tc in executed_tools],
+                "user_question": user_question
+            }
+
+            final_llm_span_id = trace_storage.add_span(
+                trace_id=trace_id,
+                span_type="LLM",
+                name=f"llm/serving-endpoints/{chat_request.model}/invocations (final)",
+                inputs=tool_results_summary
+            )
+
             try:
                 final_response = call_foundation_model(
                     model_name=chat_request.model,
@@ -415,7 +530,22 @@ async def agent_chat(request: Request, chat_request: AgentChatRequest) -> AgentC
                     max_tokens=chat_request.max_tokens,
                     token=db_token,
                 )
+
+                # Complete final LLM span - show only the text response
+                final_message_content = final_response.get('choices', [{}])[0].get('message', {}).get('content', '')
+                trace_storage.complete_span(
+                    trace_id=trace_id,
+                    span_id=final_llm_span_id,
+                    outputs={"response": final_message_content},
+                    status="OK"
+                )
             except Exception as e:
+                trace_storage.complete_span(
+                    trace_id=trace_id,
+                    span_id=final_llm_span_id,
+                    outputs={"error": str(e)},
+                    status="ERROR"
+                )
                 raise HTTPException(
                     status_code=500,
                     detail=f"Error calling Databricks Foundation Model (final): {str(e)}"
@@ -428,23 +558,35 @@ async def agent_chat(request: Request, chat_request: AgentChatRequest) -> AgentC
                 )
             
             final_message = final_response['choices'][0]['message']
-            
+
+            # Complete trace successfully
+            trace_storage.complete_trace(trace_id, status="OK")
+
             return AgentChatResponse(
                 response=final_message.get('content') or "I apologize, but I couldn't generate a response.",
                 tool_calls=executed_tools,
-                trace_id=None  # TODO: Implement MLflow tracing
+                trace_id=trace_id
             )
         else:
             # No tool calls, just return the response
+            # Complete trace successfully
+            trace_storage.complete_trace(trace_id, status="OK")
+
             return AgentChatResponse(
                 response=message.get('content') or "I apologize, but I couldn't generate a response.",
                 tool_calls=None,
-                trace_id=None
+                trace_id=trace_id
             )
-            
-    except HTTPException:
+
+    except HTTPException as e:
+        # Complete trace with error
+        if 'trace_id' in locals():
+            trace_storage.complete_trace(trace_id, status="ERROR")
         raise
     except Exception as e:
+        # Complete trace with error
+        if 'trace_id' in locals():
+            trace_storage.complete_trace(trace_id, status="ERROR")
         raise HTTPException(
             status_code=500,
             detail=f"Error processing chat request: {str(e)}"

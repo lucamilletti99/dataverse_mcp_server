@@ -98,7 +98,33 @@ async def get_app_status():
             "/api/chat/models",
             "/api/agent/chat",
             "/api/debug/get-token",
-            "/api/debug/app-status"
+            "/api/debug/app-status",
+            "/api/debug/recent-requests"
         ],
         "message": "Application is running normally"
+    }
+
+
+@router.get('/recent-requests')
+async def get_recent_requests_endpoint():
+    """Get recent API requests for debugging.
+
+    Returns the last 20 requests with:
+    - Timestamp
+    - HTTP method
+    - Request path
+    - Status code
+    - Duration in milliseconds
+
+    No authentication required for easy debugging.
+    """
+    from server.request_logger import get_recent_requests, get_all_requests
+
+    all_requests = get_all_requests()
+    recent = get_recent_requests(limit=20)
+
+    return {
+        "total_logged": len(all_requests),
+        "showing": len(recent),
+        "requests": recent
     }

@@ -18,12 +18,14 @@ def get_databricks_secret(scope: str, key: str) -> Optional[str]:
       Secret value or None if not found/not in Databricks
   """
   try:
+    import base64
     from databricks.sdk import WorkspaceClient
 
     # Get workspace client (uses service principal when in Databricks Apps)
     w = WorkspaceClient()
     secret = w.secrets.get_secret(scope=scope, key=key)
-    return secret.value
+    # Databricks SDK returns secrets base64-encoded, so we need to decode them
+    return base64.b64decode(secret.value).decode('utf-8')
   except Exception as e:
     # Not in Databricks or secret not found
     print(f"   ℹ️  Could not read Databricks secret {scope}/{key}: {e}")
@@ -59,8 +61,6 @@ class DataverseAuth:
     # 2. Environment variables
     # 3. Databricks Secrets scope 'dataverse' (when running in Databricks Apps)
 
-    print("🔐 Loading Dataverse credentials...")
-
     # Try environment variables first (for local dev)
     self.dataverse_host = (
       dataverse_host or
@@ -86,13 +86,13 @@ class DataverseAuth:
       get_databricks_secret('dataverse', 'client_secret')
     )
 
-    # Log where credentials came from (without revealing values)
+    # Log where credentials came from (minimal)
     if dataverse_host or os.environ.get('DATAVERSE_HOST'):
-      print("   ✅ Loaded credentials from environment variables")
+      pass  # Using environment variables
     elif self.dataverse_host:
-      print("   ✅ Loaded credentials from Databricks Secrets (scope: dataverse)")
+      print("✅ Loaded credentials from Databricks Secrets (scope: dataverse)")
     else:
-      print("   ⚠️  No credentials found")
+      pass  # Will fail validation below
 
     if not all([self.tenant_id, self.client_id, self.client_secret, self.dataverse_host]):
       raise ValueError(
@@ -128,10 +128,7 @@ class DataverseAuth:
     if not force_refresh and self._access_token and current_time < self._token_expires_at:
       return self._access_token
 
-    print(f'🔐 Acquiring new Dataverse access token...')
-    print(f'   Tenant ID: {self.tenant_id}')
-    print(f'   Client ID: {self.client_id}')
-    print(f'   Scope: {self.scope}')
+    # Acquiring new token (minimal logging)
 
     # Request new token using client credentials flow
     token_data = {
@@ -147,11 +144,11 @@ class DataverseAuth:
       
       token_response = response.json()
       self._access_token = token_response['access_token']
-      
+
       # Cache token with 5 minute buffer before expiry
       expires_in = token_response.get('expires_in', 3600)
       self._token_expires_at = current_time + expires_in - 300
-      
+
       print(f'✅ Successfully obtained access token (expires in {expires_in}s)')
       return self._access_token
 

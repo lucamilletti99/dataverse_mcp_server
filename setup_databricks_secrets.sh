@@ -89,10 +89,10 @@ echo ""
 store_secret() {
   local key=$1
   local value=$2
-  
+
   echo "📝 Storing secret: $key"
-  echo "$value" | databricks secrets put-secret "$SCOPE_NAME" "$key" 2>/dev/null || \
-    echo "$value" | databricks secrets put "$SCOPE_NAME" "$key"
+  printf "%s" "$value" | databricks secrets put-secret "$SCOPE_NAME" "$key" 2>/dev/null || \
+    printf "%s" "$value" | databricks secrets put "$SCOPE_NAME" "$key"
   echo "✅ Stored: $key"
 }
 

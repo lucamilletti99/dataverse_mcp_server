@@ -24,31 +24,8 @@ class DataverseClient:
         auth: DataverseAuth instance (creates new one if not provided)
         dataverse_host: Dataverse environment URL (or from env DATAVERSE_HOST)
     """
-    # Debug: Print ALL environment variables first
-    print("\n" + "="*80)
-    print("🔍 FULL ENVIRONMENT VARIABLES DEBUG:")
-    print("="*80)
-    all_env_vars = {k: v for k, v in os.environ.items() if 'DATAVERSE' in k or 'DATABRICKS' in k}
-    for key, value in sorted(all_env_vars.items()):
-        if 'SECRET' in key or 'TOKEN' in key:
-            print(f"   {key} = ***")
-        else:
-            print(f"   {key} = {value[:50]}..." if len(value) > 50 else f"   {key} = {value}")
-    print("="*80 + "\n")
-    
-    # Debug: Print Dataverse-specific variables
-    print("🔍 Dataverse Client Initialization - Environment Check:")
-    dataverse_vars = {
-        'DATAVERSE_HOST': os.environ.get('DATAVERSE_HOST'),
-        'DATAVERSE_TENANT_ID': os.environ.get('DATAVERSE_TENANT_ID'),
-        'DATAVERSE_CLIENT_ID': os.environ.get('DATAVERSE_CLIENT_ID'),
-        'DATAVERSE_CLIENT_SECRET': '***' if os.environ.get('DATAVERSE_CLIENT_SECRET') else None,
-    }
-    for key, value in dataverse_vars.items():
-        if value:
-            print(f"   ✅ {key}: {value[:30] if key != 'DATAVERSE_CLIENT_SECRET' else '***'}...")
-        else:
-            print(f"   ❌ {key}: NOT SET")
+    # Minimal logging - only log if there's an issue
+    dataverse_host_env = os.environ.get('DATAVERSE_HOST')
     
     # WORKAROUND: Databricks Apps doesn't load app.yaml environment variables
     # Use hardcoded fallback
@@ -62,22 +39,14 @@ class DataverseClient:
       print(f"❌ ERROR: {error_msg}")
       raise ValueError(error_msg)
 
-    print(f"✅ Using Dataverse Host: {self.dataverse_host}")
-    
     # Ensure host doesn't have trailing slash
     self.dataverse_host = self.dataverse_host.rstrip('/')
-    
+
     # Web API v9.2 base URL
     self.api_base = f'{self.dataverse_host}/api/data/v9.2/'
-    
+
     # Authentication
-    print("🔐 Initializing Dataverse Authentication...")
-    try:
-        self.auth = auth or DataverseAuth()
-        print("✅ Dataverse Authentication initialized successfully")
-    except Exception as e:
-        print(f"❌ ERROR initializing authentication: {str(e)}")
-        raise
+    self.auth = auth or DataverseAuth()
 
   def _make_request(
     self,

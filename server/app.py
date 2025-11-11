@@ -88,6 +88,28 @@ app.add_middleware(
   allow_headers=['*'],
 )
 
+
+# Add request logging middleware
+@app.middleware("http")
+async def log_requests_middleware(request, call_next):
+  """Log all requests for debugging."""
+  import time
+  from server.request_logger import log_request
+
+  start_time = time.time()
+  response = await call_next(request)
+  duration_ms = (time.time() - start_time) * 1000
+
+  # Log the request
+  log_request(
+    method=request.method,
+    path=str(request.url.path),
+    status_code=response.status_code,
+    duration_ms=duration_ms
+  )
+
+  return response
+
 app.include_router(router, prefix='/api', tags=['api'])
 
 # ============================================================================
