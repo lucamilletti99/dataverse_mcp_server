@@ -103,7 +103,7 @@ export function ChatPageAgent({ onViewTrace }: ChatPageAgentProps) {
 
     try {
       // Call the agent chat API
-      const response = await fetch("/api/chat/message", {
+      const response = await fetch("/api/agent/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -128,7 +128,7 @@ export function ChatPageAgent({ onViewTrace }: ChatPageAgentProps) {
 
       // Add assistant response
       const assistantMessage: Message = {
-        role: "assistant",
+            role: "assistant",
         content: data.response || "I apologize, but I couldn't generate a response.",
         tool_calls: data.tool_calls,
         trace_id: data.trace_id,
@@ -158,8 +158,8 @@ export function ChatPageAgent({ onViewTrace }: ChatPageAgentProps) {
 
   const copyMessage = (content: string, index: number) => {
     navigator.clipboard.writeText(content);
-    setCopiedIndex(index);
-    setTimeout(() => setCopiedIndex(null), 2000);
+      setCopiedIndex(index);
+      setTimeout(() => setCopiedIndex(null), 2000);
   };
 
   const renderMarkdown = (content: string) => {
@@ -190,58 +190,58 @@ export function ChatPageAgent({ onViewTrace }: ChatPageAgentProps) {
           <div className="flex items-center gap-2">
             <span className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>
               Model:
-            </span>
+          </span>
             <Select value={selectedModel} onValueChange={setSelectedModel}>
               <SelectTrigger
                 className={`w-[280px] ${
-                  isDark
+                isDark
                     ? "bg-white/5 border-white/10 text-white"
                     : "bg-gray-50 border-gray-300 text-gray-900"
                 }`}
               >
                 <SelectValue placeholder="Select a model">
                   {models.find((m) => m.id === selectedModel)?.name || "No model selected"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
                 {models.length === 0 ? (
                   <div className="p-4 text-center text-sm text-muted-foreground">
                     No models configured
                   </div>
                 ) : (
                   models.map((model) => (
-                    <SelectItem
-                      key={model.id}
-                      value={model.id}
-                      disabled={!model.supports_tools}
-                    >
-                      <div className="flex flex-col">
-                        <div className="flex items-center gap-2">
+                <SelectItem
+                  key={model.id}
+                  value={model.id}
+                  disabled={!model.supports_tools}
+                >
+                  <div className="flex flex-col">
+                    <div className="flex items-center gap-2">
                           <span
                             className={`font-medium ${
                               !model.supports_tools ? "text-muted-foreground" : ""
                             }`}
                           >
-                            {model.name}
-                          </span>
-                          {!model.supports_tools && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">
-                              Not tool-enabled
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-xs text-muted-foreground">
-                          {model.provider} • {model.context_window.toLocaleString()} tokens
+                        {model.name}
+                      </span>
+                      {!model.supports_tools && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">
+                          Not tool-enabled
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {model.provider} • {model.context_window.toLocaleString()} tokens
                         </span>
                       </div>
                     </SelectItem>
                   ))
                 )}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </div>
+            </SelectContent>
+          </Select>
+              </div>
+                  </div>
+                      </div>
 
       {/* Chat Messages */}
       <div className="flex-1 overflow-y-auto p-6">
@@ -252,14 +252,14 @@ export function ChatPageAgent({ onViewTrace }: ChatPageAgentProps) {
               <div className="space-y-4">
                 <h1
                   className={`text-5xl font-bold ${
-                    isDark ? "text-white" : "text-gray-900"
+                  isDark ? "text-white" : "text-gray-900"
                   }`}
                 >
                   What can I help you with today?
                 </h1>
                 <p
                   className={`text-lg ${
-                    isDark ? "text-white/80" : "text-gray-600"
+                  isDark ? "text-white/80" : "text-gray-600"
                   }`}
                 >
                   I can help you explore and interact with your Microsoft Dataverse data
@@ -301,29 +301,29 @@ export function ChatPageAgent({ onViewTrace }: ChatPageAgentProps) {
                   />
                   
                   {/* Tool Calls */}
-                  {message.tool_calls && message.tool_calls.length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {message.tool_calls.map((toolCall, tcIndex) => (
-                        <span
-                          key={tcIndex}
+                      {message.tool_calls && message.tool_calls.length > 0 && (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {message.tool_calls.map((toolCall, tcIndex) => (
+                            <span
+                              key={tcIndex}
                           className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${
-                            message.role === "user"
-                              ? "bg-white/20"
-                              : isDark
+                                message.role === "user"
+                                  ? "bg-white/20"
+                                  : isDark
                               ? "bg-blue-500/20 text-blue-300"
                               : "bg-blue-100 text-blue-700"
-                          }`}
-                        >
-                          <Sparkles className="h-3 w-3" />
-                          {toolCall.tool}
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                              }`}
+                            >
+                              <Sparkles className="h-3 w-3" />
+                              {toolCall.tool}
+                            </span>
+                          ))}
+                        </div>
+                      )}
 
                   {/* Trace Link */}
                   {message.trace_id && onViewTrace && (
-                    <button
+                          <button
                       onClick={() => onViewTrace(message.trace_id!)}
                       className={`mt-2 flex items-center gap-1 text-xs ${
                         message.role === "user"
@@ -331,11 +331,11 @@ export function ChatPageAgent({ onViewTrace }: ChatPageAgentProps) {
                           : isDark
                           ? "text-blue-400 hover:text-blue-300"
                           : "text-blue-600 hover:text-blue-700"
-                      }`}
-                    >
-                      <Activity className="h-3 w-3" />
-                      View Trace
-                    </button>
+                            }`}
+                          >
+                            <Activity className="h-3 w-3" />
+                            View Trace
+                          </button>
                   )}
 
                   {/* Copy Button */}
@@ -384,9 +384,9 @@ export function ChatPageAgent({ onViewTrace }: ChatPageAgentProps) {
                 </div>
                 <div
                   className={`max-w-[80%] rounded-2xl px-5 py-3 ${
-                    isDark
+                  isDark
                       ? "bg-white/10 border border-white/20"
-                      : "bg-white border border-gray-200"
+                    : "bg-white border border-gray-200"
                   }`}
                 >
                   <div className="flex items-center gap-2">
@@ -408,33 +408,33 @@ export function ChatPageAgent({ onViewTrace }: ChatPageAgentProps) {
         } border-t ${isDark ? "border-white/10" : "border-gray-200"}`}
       >
         <div className="max-w-4xl mx-auto relative">
-          <Textarea
-            ref={textareaRef}
+              <Textarea
+                ref={textareaRef}
             placeholder="Ask me about your Dataverse data..."
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
             className={`min-h-[80px] pr-14 resize-none ${
-              isDark
+                  isDark
                 ? "bg-white/5 border-white/10 text-white placeholder:text-white/60"
                 : "bg-gray-50 border-gray-300 text-gray-900 placeholder:text-gray-500"
             }`}
-            disabled={loading}
-          />
-          <Button
-            onClick={sendMessage}
-            disabled={loading || !input.trim()}
-            size="icon"
+                disabled={loading}
+              />
+              <Button
+                onClick={sendMessage}
+                disabled={loading || !input.trim()}
+                size="icon"
             className="absolute bottom-3 right-3 rounded-full bg-blue-500 hover:bg-blue-600 text-white"
-          >
-            {loading ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : (
-              <Send className="h-5 w-5" />
-            )}
-          </Button>
-        </div>
-      </div>
+              >
+                {loading ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <Send className="h-5 w-5" />
+                )}
+              </Button>
+            </div>
+          </div>
 
       {/* User Guide Button - Bottom Left Corner */}
       <Dialog open={showHelp} onOpenChange={setShowHelp}>
@@ -485,19 +485,19 @@ export function ChatPageAgent({ onViewTrace }: ChatPageAgentProps) {
                   <p className="text-sm text-muted-foreground ml-4">
                     Browse and discover all available Dataverse tables in your environment
                   </p>
-                </div>
+          </div>
                 <div>
                   <h4 className="font-semibold text-sm mb-1">describe_table</h4>
                   <p className="text-sm text-muted-foreground ml-4">
                     Get detailed schema information, column types, and metadata for a specific table
                   </p>
-                </div>
+                  </div>
                 <div>
                   <h4 className="font-semibold text-sm mb-1">read_query</h4>
                   <p className="text-sm text-muted-foreground ml-4">
                     Query Dataverse data using FetchXML to retrieve records matching your criteria
                   </p>
-                </div>
+                  </div>
                 <div>
                   <h4 className="font-semibold text-sm mb-1">create_record</h4>
                   <p className="text-sm text-muted-foreground ml-4">
@@ -508,10 +508,10 @@ export function ChatPageAgent({ onViewTrace }: ChatPageAgentProps) {
                   <h4 className="font-semibold text-sm mb-1">update_record</h4>
                   <p className="text-sm text-muted-foreground ml-4">
                     Update existing Dataverse records by ID with new field values
-                  </p>
+                        </p>
+                      </div>
                 </div>
               </div>
-            </div>
 
             {/* Configuration Info */}
             <div className={`p-4 rounded-lg ${
@@ -521,8 +521,8 @@ export function ChatPageAgent({ onViewTrace }: ChatPageAgentProps) {
               <p className="text-sm text-muted-foreground">
                 This MCP server connects to your Microsoft Dataverse environment using Service Principal authentication. 
                 All operations are performed through the Dataverse Web API.
-              </p>
-            </div>
+                </p>
+              </div>
           </div>
         </DialogContent>
       </Dialog>

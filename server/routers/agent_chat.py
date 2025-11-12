@@ -133,6 +133,7 @@ def execute_tool(tool_name: str, tool_args: Dict[str, Any], request: Request) ->
         read_query_impl,
         create_record_impl,
         update_record_impl,
+        delete_record_impl,
     )
 
     print(f"🔧 Executing tool: {tool_name} with args: {tool_args}")
@@ -142,13 +143,11 @@ def execute_tool(tool_name: str, tool_args: Dict[str, Any], request: Request) ->
             result = list_tables_impl(
                 filter_query=tool_args.get("filter_query"),
                 top=tool_args.get("top", 100),
-                custom_only=tool_args.get("custom_only", False),
-                request=request
+                custom_only=tool_args.get("custom_only", False)
             )
         elif tool_name == "describe_table":
             result = describe_table_impl(
-                table_name=tool_args["table_name"],
-                request=request
+                table_name=tool_args["table_name"]
             )
         elif tool_name == "read_query":
             result = read_query_impl(
@@ -156,21 +155,23 @@ def execute_tool(tool_name: str, tool_args: Dict[str, Any], request: Request) ->
                 select=tool_args.get("select"),
                 filter_query=tool_args.get("filter"),
                 top=tool_args.get("top", 10),
-                orderby=tool_args.get("orderby"),
-                request=request
+                order_by=tool_args.get("orderby")
             )
         elif tool_name == "create_record":
             result = create_record_impl(
                 table_name=tool_args["table_name"],
-                data=tool_args["data"],
-                request=request
+                data=tool_args["data"]
             )
         elif tool_name == "update_record":
             result = update_record_impl(
                 table_name=tool_args["table_name"],
                 record_id=tool_args["record_id"],
-                data=tool_args["data"],
-                request=request
+                data=tool_args["data"]
+            )
+        elif tool_name == "delete_record":
+            result = delete_record_impl(
+                table_name=tool_args["table_name"],
+                record_id=tool_args["record_id"]
             )
         else:
             return json.dumps({"success": False, "error": f"Unknown tool: {tool_name}"})
@@ -291,21 +292,36 @@ async def run_agent_loop(
         # Has tool calls - add assistant message and execute tools
         print(f"🔧 Model wants to call {len(tool_calls)} tool(s)")
 
-        # Add assistant message with tool_calls
-        assistant_msg = {
-            "role": "assistant",
-            "tool_calls": tool_calls
-        }
+        # Add assistant message with the model's response (includes tool_calls in content)
+        # The Foundation Model API returns tool_calls in the OpenAI format,
+        # but we need to add the full assistant message as-is
+        assistant_msg = {"role": "assistant"}
+        
+        # If there's text content, include it
         if message.get('content'):
             assistant_msg["content"] = message['content']
-
+        
+        # Add tool_calls (Foundation Model API format)
+        if tool_calls:
+            assistant_msg["tool_calls"] = tool_calls
+        
         messages.append(assistant_msg)
+        print(f"📤 Added assistant message with {len(tool_calls)} tool_calls")
 
-        # Execute each tool and add results
+        # Execute each tool and collect results
+        tool_results = []
         for tool_call in tool_calls:
             tool_name = tool_call['function']['name']
-            tool_args = json.loads(tool_call['function']['arguments'])
+            tool_args_str = tool_call['function']['arguments']
             tool_id = tool_call['id']
+            
+            # Parse arguments (might be string or dict)
+            if isinstance(tool_args_str, str):
+                tool_args = json.loads(tool_args_str)
+            else:
+                tool_args = tool_args_str
+
+            print(f"   🔧 Executing: {tool_name}({tool_args})")
 
             # Add tool span
             tool_span_id = trace_storage.add_span(
@@ -319,6 +335,7 @@ async def run_agent_loop(
             try:
                 # Execute tool
                 result = execute_tool(tool_name, tool_args, request)
+                print(f"   ✅ Tool result: {result[:200]}...")
 
                 # Complete tool span
                 trace_storage.complete_span(
@@ -329,6 +346,7 @@ async def run_agent_loop(
                 )
             except Exception as e:
                 result = json.dumps({"success": False, "error": str(e)})
+                print(f"   ❌ Tool error: {str(e)}")
                 trace_storage.complete_span(
                     trace_id=trace_id,
                     span_id=tool_span_id,
@@ -336,12 +354,19 @@ async def run_agent_loop(
                     status="ERROR"
                 )
 
-            # Add tool result message
-            messages.append({
+            # Collect tool result
+            tool_results.append({
                 "role": "tool",
                 "tool_call_id": tool_id,
                 "content": result
             })
+
+        # Add all tool results as separate messages
+        # The Foundation Model API expects tool results as individual messages
+        for tool_result in tool_results:
+            messages.append(tool_result)
+        
+        print(f"📤 Added {len(tool_results)} tool result message(s)")
 
     # Hit max iterations
     print(f"⚠️  Reached max iterations ({max_iterations})")
@@ -397,7 +422,7 @@ async def list_available_models() -> Dict[str, Any]:
     }
 
 
-@router.post("/message", response_model=AgentChatResponse)
+@router.post("/chat", response_model=AgentChatResponse)
 async def agent_chat(chat_request: AgentChatRequest, request: Request):
     """Agent chat endpoint - runs full agentic loop server-side."""
 
@@ -454,7 +479,7 @@ async def agent_chat(chat_request: AgentChatRequest, request: Request):
             "type": "function",
             "function": {
                 "name": "read_query",
-                "description": "Query records from a Dataverse table using simple OData syntax. Retrieve data with optional filtering, sorting, and column selection.",
+                "description": "Query records from a Dataverse table. For best results, omit 'select' to let Dataverse return relevant columns automatically.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -464,7 +489,7 @@ async def agent_chat(chat_request: AgentChatRequest, request: Request):
                         },
                         "select": {
                             "type": "string",
-                            "description": "Comma-separated list of columns to retrieve (e.g., 'name,emailaddress1')"
+                            "description": "OPTIONAL: Comma-separated columns (e.g., 'name,revenue'). Omit to get all relevant columns automatically (recommended)."
                         },
                         "filter": {
                             "type": "string",
@@ -526,6 +551,27 @@ async def agent_chat(chat_request: AgentChatRequest, request: Request):
                         }
                     },
                     "required": ["table_name", "record_id", "data"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "delete_record",
+                "description": "Delete a record from a Dataverse table.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "table_name": {
+                            "type": "string",
+                            "description": "Logical name of the table"
+                        },
+                        "record_id": {
+                            "type": "string",
+                            "description": "GUID of the record to delete"
+                        }
+                    },
+                    "required": ["table_name", "record_id"]
                 }
             }
         },

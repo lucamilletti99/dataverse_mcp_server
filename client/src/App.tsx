@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { ChatPageAgent } from "./pages/ChatPageAgent";
 import { TracesPage } from "./pages/TracesPage";
-import { MessageSquare, Moon, Sun, Activity } from "lucide-react";
+import ArchitecturePage from "./pages/ArchitecturePage";
+import { MessageSquare, Moon, Sun, Activity, Network } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -61,6 +62,21 @@ function App() {
             <Activity className="h-4 w-4" />
             Traces
           </button>
+          <button
+            onClick={() => setActiveTab("architecture")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+              activeTab === "architecture"
+                ? isDark
+                  ? "bg-white/10 text-white"
+                  : "bg-gray-100 text-gray-900"
+                : isDark
+                ? "text-white/60 hover:text-white/80 hover:bg-white/5"
+                : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+            }`}
+          >
+            <Network className="h-4 w-4" />
+            Architecture
+          </button>
         </div>
 
         {/* Theme Selector */}
@@ -96,6 +112,9 @@ function App() {
         </div>
         <div className={activeTab === "traces" ? "h-full" : "hidden"}>
           <TracesPage initialTraceId={selectedTraceId} />
+        </div>
+        <div className={activeTab === "architecture" ? "h-full overflow-auto" : "hidden"}>
+          <ArchitecturePage />
         </div>
       </div>
     </div>

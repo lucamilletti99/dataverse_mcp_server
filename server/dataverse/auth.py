@@ -24,11 +24,17 @@ def get_databricks_secret(scope: str, key: str) -> Optional[str]:
     # Get workspace client (uses service principal when in Databricks Apps)
     w = WorkspaceClient()
     secret = w.secrets.get_secret(scope=scope, key=key)
+    
     # Databricks SDK returns secrets base64-encoded, so we need to decode them
-    return base64.b64decode(secret.value).decode('utf-8')
+    value = base64.b64decode(secret.value).decode('utf-8')
+    print(f"   ✅ Successfully loaded secret: {scope}/{key}")
+    return value
+  except ImportError:
+    # databricks-sdk not installed (local dev)
+    return None
   except Exception as e:
-    # Not in Databricks or secret not found
-    print(f"   ℹ️  Could not read Databricks secret {scope}/{key}: {e}")
+    # Not in Databricks, secret not found, or permission denied
+    print(f"   ⚠️  Could not read Databricks secret {scope}/{key}: {type(e).__name__}: {e}")
     return None
 
 
@@ -61,6 +67,8 @@ class DataverseAuth:
     # 2. Environment variables
     # 3. Databricks Secrets scope 'dataverse' (when running in Databricks Apps)
 
+    print("🔐 Loading Dataverse credentials...")
+    
     # Try environment variables first (for local dev)
     self.dataverse_host = (
       dataverse_host or
@@ -86,19 +94,35 @@ class DataverseAuth:
       get_databricks_secret('dataverse', 'client_secret')
     )
 
-    # Log where credentials came from (minimal)
-    if dataverse_host or os.environ.get('DATAVERSE_HOST'):
-      pass  # Using environment variables
+    # Log where credentials came from
+    if os.environ.get('DATAVERSE_HOST'):
+      print("✅ Using credentials from environment variables")
     elif self.dataverse_host:
-      print("✅ Loaded credentials from Databricks Secrets (scope: dataverse)")
+      print("✅ Using credentials from Databricks Secrets (scope: dataverse)")
     else:
-      pass  # Will fail validation below
+      print("⚠️  No credentials loaded from any source")
 
-    if not all([self.tenant_id, self.client_id, self.client_secret, self.dataverse_host]):
-      raise ValueError(
-        'Missing required Dataverse credentials. Set DATAVERSE_TENANT_ID, '
-        'DATAVERSE_CLIENT_ID, DATAVERSE_CLIENT_SECRET, and DATAVERSE_HOST'
+    # Validate all required credentials are present
+    missing = []
+    if not self.dataverse_host:
+      missing.append('DATAVERSE_HOST')
+    if not self.tenant_id:
+      missing.append('DATAVERSE_TENANT_ID')
+    if not self.client_id:
+      missing.append('DATAVERSE_CLIENT_ID')
+    if not self.client_secret:
+      missing.append('DATAVERSE_CLIENT_SECRET')
+    
+    if missing:
+      error_msg = (
+        f'Missing required Dataverse credentials: {", ".join(missing)}\n'
+        f'Please ensure:\n'
+        f'  1. For local dev: Set environment variables in .env.local\n'
+        f'  2. For Databricks Apps: Run ./setup_databricks_secrets.sh\n'
+        f'  3. Verify the SPN has READ access to the "dataverse" secret scope'
       )
+      print(f"❌ {error_msg}")
+      raise ValueError(error_msg)
 
     # Token cache
     self._access_token: Optional[str] = None

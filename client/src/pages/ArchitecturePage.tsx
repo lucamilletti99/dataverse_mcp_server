@@ -1,336 +1,438 @@
-/**
- * ArchitecturePage - Interactive architecture diagram with flashcard components
- */
-
-import { useState } from 'react';
-import { useTheme } from '@/components/theme-provider';
+import { useState } from "react";
 import {
-  Layers,
-  Database,
-  Zap,
-  Code,
-  Cloud,
-  MessageSquare,
-  Server,
-  Box,
-  Network,
-  GitBranch
-} from 'lucide-react';
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
-interface ComponentCardProps {
+type ComponentInfo = {
   title: string;
-  icon: React.ReactNode;
-  front: string;
-  back: string;
-  color: string;
-}
+  description: string;
+  details: string[];
+};
 
-function ComponentCard({ title, icon, front, back, color }: ComponentCardProps) {
-  const [isFlipped, setIsFlipped] = useState(false);
-  const { theme } = useTheme();
-  const isDark = theme === 'dark';
+const componentDetails: Record<string, ComponentInfo> = {
+  user: {
+    title: "User",
+    description: "End users interact with the application through natural language",
+    details: [
+      "Ask questions like 'Show me all accounts' or 'Update this record'",
+      "No need to know API syntax or database structure",
+      "Conversational interface in the browser",
+    ],
+  },
+  frontend: {
+    title: "React Frontend",
+    description: "Modern web interface for user interaction",
+    details: [
+      "Built with React and TypeScript",
+      "Styled with Tailwind CSS",
+      "Real-time chat interface",
+      "Model selection and configuration",
+      "Trace viewing for debugging",
+    ],
+  },
+  databricksApp: {
+    title: "Databricks Apps",
+    description: "Hosting platform for the entire application",
+    details: [
+      "Hosts both frontend (React) and backend (FastAPI)",
+      "Provides compute resources and networking",
+      "Integrates with Databricks Secrets for secure credentials",
+      "Automatic SSL and authentication",
+      "Service Principal identity for secure API access",
+    ],
+  },
+  agentLoop: {
+    title: "AI Agent Loop",
+    description: "Orchestrates multi-turn conversations with tool calling",
+    details: [
+      "Step 1: User question sent to Foundation Model",
+      "Step 2: Model decides which tool(s) to call",
+      "Step 3: Tools execute and return results",
+      "Step 4: Model formats natural language response",
+      "Can iterate multiple times for complex queries",
+    ],
+  },
+  foundationModel: {
+    title: "Databricks Foundation Model API",
+    description: "Powerful LLMs accessible via API",
+    details: [
+      "Claude Sonnet 4 (default - best for reasoning)",
+      "GPT-4o (OpenAI's latest)",
+      "Llama 3.1 (Open source)",
+      "Mixtral (Fast and efficient)",
+      "Supports tool calling (function calling)",
+    ],
+  },
+  tools: {
+    title: "Dataverse Tools",
+    description: "Six CRUD operations for Dataverse",
+    details: [
+      "list_tables - Discover available tables",
+      "describe_table - Get schema/columns",
+      "read_query - Query records with OData",
+      "create_record - Insert new records",
+      "update_record - Modify existing records",
+      "delete_record - Remove records",
+    ],
+  },
+  mcpProtocol: {
+    title: "Model Context Protocol (MCP)",
+    description: "Standardized protocol for LLM-to-data integration",
+    details: [
+      "Open standard by Anthropic",
+      "Enables tools to expose capabilities to LLMs",
+      "Standardizes request/response format",
+      "Allows any MCP client to connect to this server",
+      "Compatible with Claude Desktop, VS Code, and more",
+    ],
+  },
+  auth: {
+    title: "OAuth Authentication",
+    description: "Secure connection to Dataverse using Service Principal",
+    details: [
+      "OAuth 2.0 Client Credentials flow",
+      "Service Principal (App Registration in Azure AD)",
+      "Credentials stored in Databricks Secrets",
+      "Tokens automatically refreshed",
+      "Principle of least privilege",
+    ],
+  },
+  dataverse: {
+    title: "Microsoft Dataverse",
+    description: "Cloud database powering Dynamics 365",
+    details: [
+      "Relational database with business logic",
+      "Powers Dynamics 365 Sales, Service, Marketing",
+      "Web API v9.2 (REST)",
+      "Stores entities like accounts, contacts, leads",
+      "Enforces security roles and permissions",
+    ],
+  },
+  dynamics: {
+    title: "Dynamics 365",
+    description: "Suite of business applications built on Dataverse",
+    details: [
+      "Sales - CRM and opportunity management",
+      "Customer Service - Case and ticket management",
+      "Marketing - Campaign and lead generation",
+      "Field Service - Work order management",
+      "All apps share the same Dataverse backend",
+    ],
+  },
+};
 
-  return (
-    <div
-      className="perspective-1000 cursor-pointer h-[220px]"
-      onClick={() => setIsFlipped(!isFlipped)}
-    >
-      <div
-        className={`relative w-full h-full transition-transform duration-500 transform-style-3d ${
-          isFlipped ? 'rotate-y-180' : ''
-        }`}
-        style={{ transformStyle: 'preserve-3d' }}
-      >
-        {/* Front of card */}
-        <div
-          className={`absolute w-full h-full rounded-xl border-2 p-6 backface-hidden ${
-            isDark
-              ? `bg-white/5 border-${color}-500/30 backdrop-blur-md`
-              : `bg-white border-${color}-200`
-          } shadow-lg hover:shadow-xl transition-shadow`}
-          style={{ backfaceVisibility: 'hidden' }}
-        >
-          <div className="flex flex-col items-center justify-center h-full text-center space-y-4">
-            <div className={`${color === 'red' ? 'text-[#FF3621]' : `text-${color}-500`}`}>
-              {icon}
-            </div>
-            <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-              {title}
-            </h3>
-            <p className={`text-sm ${isDark ? 'text-white/60' : 'text-gray-600'}`}>
-              {front}
-            </p>
-          </div>
-        </div>
+export default function ArchitecturePage() {
+  const [selectedComponent, setSelectedComponent] = useState<string | null>(null);
 
-        {/* Back of card */}
-        <div
-          className={`absolute w-full h-full rounded-xl border-2 p-6 backface-hidden rotate-y-180 ${
-            isDark
-              ? `bg-${color}-500/10 border-${color}-500/30 backdrop-blur-md`
-              : `bg-${color}-50 border-${color}-200`
-          } shadow-lg`}
-          style={{
-            backfaceVisibility: 'hidden',
-            transform: 'rotateY(180deg)'
-          }}
-        >
-          <div className="flex flex-col h-full">
-            <div className="flex items-center gap-2 mb-3">
-              <div className={`${color === 'red' ? 'text-[#FF3621]' : `text-${color}-600`}`}>
-                {icon}
-              </div>
-              <h3 className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                {title}
-              </h3>
-            </div>
-            <p className={`text-xs leading-relaxed ${isDark ? 'text-white/80' : 'text-gray-700'}`}>
-              {back}
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+  const openDialog = (component: string) => {
+    setSelectedComponent(component);
+  };
 
-export function ArchitecturePage() {
-  const { theme } = useTheme();
-  const isDark = theme === 'dark';
+  const closeDialog = () => {
+    setSelectedComponent(null);
+  };
 
-  const components = [
-    {
-      title: 'React Frontend',
-      icon: <Code className="h-10 w-10" />,
-      front: 'Modern TypeScript UI built with React + Vite',
-      back: 'User interface built with React, TypeScript, and shadcn/ui components. Provides chat interface, API registry management, and real-time updates. Uses React Query for state management and API client auto-generated from FastAPI OpenAPI spec.',
-      color: 'blue',
-    },
-    {
-      title: 'FastAPI Backend',
-      icon: <Server className="h-10 w-10" />,
-      front: 'Python API server with MCP integration',
-      back: 'High-performance async Python backend using FastAPI. Handles HTTP requests, manages authentication, and serves both the web UI and MCP protocol. Auto-generates OpenAPI documentation and TypeScript client.',
-      color: 'green',
-    },
-    {
-      title: 'MCP Server',
-      icon: <Network className="h-10 w-10" />,
-      front: 'Model Context Protocol for AI tools',
-      back: 'Custom MCP server that exposes specialized tools for API discovery, registration, and management. Enables AI assistants to interact with the API registry through standardized protocols, providing tools for validation, querying, and endpoint management.',
-      color: 'purple',
-    },
-    {
-      title: 'Databricks Foundation Models',
-      icon: <MessageSquare className="h-10 w-10" />,
-      front: 'State-of-the-art LLMs for natural conversations',
-      back: 'Databricks Foundation Model APIs provide access to leading LLMs including Claude, Llama, DBRX, and others via Model Serving. Processes natural language requests, executes MCP tools, and provides intelligent responses about API discovery and management.',
-      color: 'red',
-    },
-    {
-      title: 'Unity Catalog',
-      icon: <Database className="h-10 w-10" />,
-      front: 'Centralized data governance and storage',
-      back: 'Databricks Unity Catalog provides a unified governance solution. Stores the api_http_registry table and manages Unity Catalog HTTP Connections for secure API integration. Provides full audit logging, access control, and data lineage. Enables multi-catalog/schema deployment flexibility.',
-      color: 'orange',
-    },
-    {
-      title: 'SQL Warehouse',
-      icon: <Zap className="h-10 w-10" />,
-      front: 'Serverless SQL compute engine',
-      back: 'Databricks SQL Warehouse provides serverless compute for running queries against Unity Catalog. Automatically scales based on workload and provides fast query performance for API registry operations.',
-      color: 'yellow',
-    },
-    {
-      title: 'Databricks Apps',
-      icon: <Cloud className="h-10 w-10" />,
-      front: 'Hosted application platform',
-      back: 'Databricks Apps platform hosts the full-stack application with OAuth authentication, automatic HTTPS, and seamless integration with Databricks workspace. Provides /logz endpoint for debugging and monitoring.',
-      color: 'indigo',
-    },
-    {
-      title: 'HTTP Connections',
-      icon: <Box className="h-10 w-10" />,
-      front: 'Unity Catalog HTTP Connections for APIs',
-      back: 'Unity Catalog HTTP Connections provide secure, managed access to external APIs with built-in authentication (public, API key, bearer token). The api_http_registry table tracks connection metadata, parameters, and usage. HTTP connections support http_request() function for SQL-based API calls.',
-      color: 'cyan',
-    },
-    {
-      title: 'MLflow Tracing',
-      icon: <GitBranch className="h-10 w-10" />,
-      front: 'LLM observability and debugging',
-      back: 'MLflow tracing captures all LLM interactions including prompts, tool calls, and responses. Enables debugging of AI agent behavior, performance monitoring, and quality assurance for the chat experience.',
-      color: 'pink',
-    },
-  ];
+  const currentInfo = selectedComponent ? componentDetails[selectedComponent] : null;
 
   return (
-    <div className={`h-full overflow-y-auto ${
-      isDark
-        ? 'bg-gradient-to-br from-[#1C3D42] via-[#24494F] to-[#2C555C]'
-        : 'bg-gradient-to-br from-gray-50 via-white to-gray-100'
-    }`}>
-      {/* Header */}
-      <div className={`p-6 border-b ${isDark ? 'border-white/10' : 'border-gray-200'}`}>
-        <div className="max-w-7xl mx-auto">
-          <h1 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-            System Architecture
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white overflow-auto">
+      <div className="container mx-auto py-12 px-6 max-w-6xl">
+        {/* Title */}
+        <div className="text-center mb-16">
+          <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-slate-100 to-slate-300 bg-clip-text text-transparent">
+            Interactivity with Dynamics using AI
           </h1>
-          <p className={`text-sm mt-2 ${isDark ? 'text-white/60' : 'text-gray-600'}`}>
-            Click any component to learn more about how it works
+          <p className="text-2xl text-slate-400 font-light">
+            Utilizing the Dataverse MCP server for enhanced agentic workflows
           </p>
+          <p className="text-sm text-slate-500 mt-2">💡 Click on any component to learn more</p>
+        </div>
+
+        {/* Main Flow */}
+        <div className="flex flex-col items-center gap-6">
+          
+          {/* User */}
+          <button
+            onClick={() => openDialog("user")}
+            className="flex flex-col items-center hover:scale-105 transition-transform cursor-pointer"
+          >
+            <div className="w-24 h-24 bg-gradient-to-br from-slate-600 to-slate-700 rounded-full flex items-center justify-center shadow-xl hover:shadow-slate-500/30">
+              <svg className="w-14 h-14 text-white" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="text-center mt-3">
+              <p className="text-lg font-semibold">User</p>
+              <p className="text-xs text-slate-500">Natural language questions</p>
+            </div>
+          </button>
+
+          {/* Arrow Down */}
+          <div className="text-4xl text-slate-600">↓</div>
+
+          {/* Databricks Apps Container */}
+          <div className="w-full max-w-5xl bg-slate-800/40 backdrop-blur border border-slate-600/50 rounded-3xl p-4 shadow-xl">
+            <button
+              onClick={() => openDialog("databricksApp")}
+              className="w-full text-left hover:bg-slate-700/30 rounded-xl p-3 transition-colors mb-4"
+            >
+              <div className="flex items-center gap-3">
+                {/* Databricks logo - simple brick representation */}
+                <div className="w-10 h-10 bg-gradient-to-br from-red-500 to-orange-600 rounded-lg flex items-center justify-center">
+                  <div className="grid grid-cols-2 gap-0.5 w-6 h-6">
+                    <div className="bg-white rounded-sm"></div>
+                    <div className="bg-white rounded-sm"></div>
+                    <div className="bg-white rounded-sm"></div>
+                    <div className="bg-white rounded-sm"></div>
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-slate-200">Databricks Apps</h3>
+                  <p className="text-xs text-slate-500">Hosting Platform</p>
+                </div>
+              </div>
+            </button>
+
+            {/* Frontend */}
+            <button
+              onClick={() => openDialog("frontend")}
+              className="w-full bg-slate-700/30 hover:bg-slate-700/50 backdrop-blur border border-slate-600/30 rounded-xl p-4 mb-3 transition-colors text-left"
+            >
+              <div className="flex items-center gap-3">
+                {/* React logo */}
+                <div className="w-10 h-10 flex items-center justify-center">
+                  <svg className="w-10 h-10" viewBox="-11.5 -10.23174 23 20.46348">
+                    <circle cx="0" cy="0" r="2.05" fill="#61dafb"/>
+                    <g stroke="#61dafb" strokeWidth="1" fill="none">
+                      <ellipse rx="11" ry="4.2"/>
+                      <ellipse rx="11" ry="4.2" transform="rotate(60)"/>
+                      <ellipse rx="11" ry="4.2" transform="rotate(120)"/>
+                    </g>
+                  </svg>
+                </div>
+                <div>
+                  <h4 className="text-lg font-semibold">React Frontend</h4>
+                  <p className="text-sm text-slate-400">TypeScript + Tailwind CSS</p>
+                </div>
+              </div>
+            </button>
+
+            {/* Backend Box */}
+            <div className="w-full bg-slate-700/40 backdrop-blur border border-slate-500/50 rounded-2xl p-6 shadow-xl">
+              <div className="flex items-center gap-3 mb-6">
+                {/* FastAPI logo simplified */}
+                <div className="w-10 h-10 bg-gradient-to-br from-teal-500 to-emerald-600 rounded-lg flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">FA</span>
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold">FastAPI Backend</h3>
+                  <p className="text-sm text-slate-400">Python API Server + AI Agent</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {/* AI Agent Loop */}
+                <button
+                  onClick={() => openDialog("agentLoop")}
+                  className="w-full bg-indigo-900/20 hover:bg-indigo-900/30 rounded-xl p-5 border border-indigo-700/30 transition-colors text-left"
+                >
+                  <h4 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M13 7H7v6h6V7z"/>
+                      <path fillRule="evenodd" d="M7 2a1 1 0 012 0v1h2V2a1 1 0 112 0v1h2a2 2 0 012 2v2h1a1 1 0 110 2h-1v2h1a1 1 0 110 2h-1v2a2 2 0 01-2 2h-2v1a1 1 0 11-2 0v-1H9v1a1 1 0 11-2 0v-1H5a2 2 0 01-2-2v-2H2a1 1 0 110-2h1V9H2a1 1 0 010-2h1V5a2 2 0 012-2h2V2zM5 5h10v10H5V5z" clipRule="evenodd"/>
+                    </svg>
+                    AI Agent Loop
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="flex flex-col items-center text-center">
+                      <div className="w-10 h-10 bg-indigo-600/60 rounded-full flex items-center justify-center font-bold text-sm mb-2">1</div>
+                      <p className="text-xs">Question to Model</p>
+                    </div>
+                    <div className="flex flex-col items-center text-center">
+                      <div className="w-10 h-10 bg-indigo-600/60 rounded-full flex items-center justify-center font-bold text-sm mb-2">2</div>
+                      <p className="text-xs">Tool Selection</p>
+                    </div>
+                    <div className="flex flex-col items-center text-center">
+                      <div className="w-10 h-10 bg-indigo-600/60 rounded-full flex items-center justify-center font-bold text-sm mb-2">3</div>
+                      <p className="text-xs">Execute & Return</p>
+                    </div>
+                    <div className="flex flex-col items-center text-center">
+                      <div className="w-10 h-10 bg-indigo-600/60 rounded-full flex items-center justify-center font-bold text-sm mb-2">4</div>
+                      <p className="text-xs">Natural Response</p>
+                    </div>
+                  </div>
+                </button>
+
+                {/* Foundation Models */}
+                <button
+                  onClick={() => openDialog("foundationModel")}
+                  className="w-full bg-emerald-900/20 hover:bg-emerald-900/30 rounded-xl p-5 border border-emerald-700/30 transition-colors text-left"
+                >
+                  <h4 className="text-lg font-semibold mb-2 flex items-center gap-2">
+                    <div className="w-8 h-8 bg-gradient-to-br from-red-500 to-orange-600 rounded flex items-center justify-center">
+                      <span className="text-white font-bold text-xs">DB</span>
+                    </div>
+                    Databricks Foundation Model API
+                  </h4>
+                  <p className="text-sm text-slate-300">Powered by industry-leading LLMs</p>
+                </button>
+
+                {/* Tools */}
+                <button
+                  onClick={() => openDialog("tools")}
+                  className="w-full bg-amber-900/20 hover:bg-amber-900/30 rounded-xl p-5 border border-amber-700/30 transition-colors text-left"
+                >
+                  <h4 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd"/>
+                    </svg>
+                    Available Tools
+                  </h4>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    <div className="bg-slate-600/40 px-3 py-2 rounded-lg text-xs font-medium">
+                      List Tables
+                    </div>
+                    <div className="bg-slate-600/40 px-3 py-2 rounded-lg text-xs font-medium">
+                      Describe Table
+                    </div>
+                    <div className="bg-slate-600/40 px-3 py-2 rounded-lg text-xs font-medium">
+                      Read Query
+                    </div>
+                    <div className="bg-slate-600/40 px-3 py-2 rounded-lg text-xs font-medium">
+                      Create Record
+                    </div>
+                    <div className="bg-slate-600/40 px-3 py-2 rounded-lg text-xs font-medium">
+                      Update Record
+                    </div>
+                    <div className="bg-slate-600/40 px-3 py-2 rounded-lg text-xs font-medium">
+                      Delete Record
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Arrow Down */}
+          <div className="text-4xl text-slate-600">↓</div>
+
+          {/* MCP Protocol Layer */}
+          <button
+            onClick={() => openDialog("mcpProtocol")}
+            className="w-full max-w-3xl bg-slate-700/30 hover:bg-slate-700/50 backdrop-blur border border-slate-600/40 rounded-xl p-5 shadow-lg transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg flex items-center justify-center">
+                <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/>
+                </svg>
+              </div>
+              <div className="text-left">
+                <h4 className="text-lg font-semibold">Model Context Protocol (MCP)</h4>
+                <p className="text-sm text-slate-400">Standardized LLM-to-data integration protocol</p>
+              </div>
+            </div>
+          </button>
+
+          {/* Arrow Down */}
+          <div className="text-4xl text-slate-600">↓</div>
+
+          {/* Authentication */}
+          <button
+            onClick={() => openDialog("auth")}
+            className="w-full max-w-2xl bg-slate-700/30 hover:bg-slate-700/50 backdrop-blur border border-slate-600/40 rounded-xl p-5 shadow-lg transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-yellow-500 to-orange-600 rounded-lg flex items-center justify-center">
+                <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd"/>
+                </svg>
+              </div>
+              <div className="text-left">
+                <h4 className="text-lg font-semibold">Secure Authentication</h4>
+                <p className="text-sm text-slate-400">OAuth 2.0 Service Principal via Databricks Secrets</p>
+              </div>
+            </div>
+          </button>
+
+          {/* Arrow Down */}
+          <div className="text-4xl text-slate-600">↓</div>
+
+          {/* Dataverse & Dynamics Container */}
+          <div className="w-full max-w-4xl bg-slate-800/40 backdrop-blur border border-slate-600/50 rounded-3xl p-6 shadow-xl">
+            {/* Dataverse */}
+            <button
+              onClick={() => openDialog("dataverse")}
+              className="w-full flex items-center gap-4 hover:bg-slate-700/30 rounded-xl p-4 transition-colors mb-4"
+            >
+              {/* Microsoft Dataverse logo representation */}
+              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-700 rounded-xl flex items-center justify-center shadow-lg">
+                <svg className="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M3 12v3c0 1.657 3.134 3 7 3s7-1.343 7-3v-3c0 1.657-3.134 3-7 3s-7-1.343-7-3z"/>
+                  <path d="M3 7v3c0 1.657 3.134 3 7 3s7-1.343 7-3V7c0 1.657-3.134 3-7 3S3 8.657 3 7z"/>
+                  <path d="M17 5c0 1.657-3.134 3-7 3S3 6.657 3 5s3.134-3 7-3 7 1.343 7 3z"/>
+                </svg>
+              </div>
+              <div className="text-left">
+                <p className="text-xl font-semibold">Microsoft Dataverse</p>
+                <p className="text-sm text-slate-400">Unified data platform with Web API v9.2</p>
+              </div>
+            </button>
+
+            {/* Dynamics 365 */}
+            <button
+              onClick={() => openDialog("dynamics")}
+              className="w-full bg-slate-700/30 hover:bg-slate-700/50 backdrop-blur border border-slate-600/30 rounded-xl p-5 transition-colors text-left"
+            >
+              <div className="flex items-center gap-3">
+                {/* Dynamics 365 logo representation */}
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-lg flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">D365</span>
+                </div>
+                <div>
+                  <h4 className="text-lg font-semibold">Dynamics 365</h4>
+                  <p className="text-sm text-slate-400">Sales • Service • Marketing • Field Service</p>
+                </div>
+              </div>
+            </button>
+          </div>
+
+        </div>
+
+        {/* Footer */}
+        <div className="mt-16 text-center text-slate-600 text-sm">
+          <p>© 2025 Databricks Inc. — All rights reserved</p>
         </div>
       </div>
 
-      {/* Architecture Diagram */}
-      <div className="max-w-7xl mx-auto p-8">
-        {/* Presentation Layer */}
-        <div className="mb-8 relative">
-          <h2 className={`text-xl font-semibold mb-6 text-center flex items-center justify-center gap-2 ${
-            isDark ? 'text-white' : 'text-gray-900'
-          }`}>
-            <Layers className="h-5 w-5" />
-            Presentation Layer
-          </h2>
-          <div className="flex justify-center">
-            <div className="w-full max-w-md">
-              <ComponentCard {...components[0]} />
-            </div>
+      {/* Dialog */}
+      <Dialog open={!!selectedComponent} onOpenChange={closeDialog}>
+        <DialogContent className="bg-slate-800 text-white border-slate-700 max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold text-slate-100">
+              {currentInfo?.title}
+            </DialogTitle>
+            <DialogDescription className="text-slate-300 text-base mt-2">
+              {currentInfo?.description}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-4">
+            <h4 className="text-sm font-semibold text-slate-400 uppercase mb-3">Key Details</h4>
+            <ul className="space-y-2">
+              {currentInfo?.details.map((detail, index) => (
+                <li key={index} className="flex items-start gap-3">
+                  <span className="text-slate-400 mt-1">✓</span>
+                  <span className="text-slate-200">{detail}</span>
+                </li>
+              ))}
+            </ul>
           </div>
-          {/* Connecting line down */}
-          <div className="flex justify-center mt-6">
-            <div className={`w-0.5 h-12 ${isDark ? 'bg-white/20' : 'bg-gray-300'}`}>
-              <div className={`w-3 h-3 rounded-full -ml-1.5 ${isDark ? 'bg-white/40' : 'bg-gray-400'} absolute`} style={{ top: '100%' }} />
-            </div>
-          </div>
-        </div>
-
-        {/* Application Layer */}
-        <div className="mb-8 relative">
-          <h2 className={`text-xl font-semibold mb-6 text-center flex items-center justify-center gap-2 ${
-            isDark ? 'text-white' : 'text-gray-900'
-          }`}>
-            <Server className="h-5 w-5" />
-            Application Layer
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-            <ComponentCard {...components[1]} />
-            <ComponentCard {...components[2]} />
-            <ComponentCard {...components[8]} />
-          </div>
-          {/* Connecting lines down */}
-          <div className="flex justify-center mt-6 relative">
-            <div className={`w-0.5 h-12 ${isDark ? 'bg-white/20' : 'bg-gray-300'}`}>
-              <div className={`w-3 h-3 rounded-full -ml-1.5 ${isDark ? 'bg-white/40' : 'bg-gray-400'} absolute`} style={{ top: '100%' }} />
-            </div>
-          </div>
-        </div>
-
-        {/* AI & Compute Layer */}
-        <div className="mb-8 relative">
-          <h2 className={`text-xl font-semibold mb-6 text-center flex items-center justify-center gap-2 ${
-            isDark ? 'text-white' : 'text-gray-900'
-          }`}>
-            <MessageSquare className="h-5 w-5" />
-            AI & Compute Layer
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto">
-            <ComponentCard {...components[3]} />
-            <ComponentCard {...components[5]} />
-          </div>
-          {/* Connecting lines down */}
-          <div className="flex justify-center mt-6 relative">
-            <div className={`w-0.5 h-12 ${isDark ? 'bg-white/20' : 'bg-gray-300'}`}>
-              <div className={`w-3 h-3 rounded-full -ml-1.5 ${isDark ? 'bg-white/40' : 'bg-gray-400'} absolute`} style={{ top: '100%' }} />
-            </div>
-          </div>
-        </div>
-
-        {/* Data & Infrastructure Layer */}
-        <div className="mb-12 relative">
-          <h2 className={`text-xl font-semibold mb-6 text-center flex items-center justify-center gap-2 ${
-            isDark ? 'text-white' : 'text-gray-900'
-          }`}>
-            <Database className="h-5 w-5" />
-            Data & Infrastructure Layer
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-            <ComponentCard {...components[4]} />
-            <ComponentCard {...components[7]} />
-            <ComponentCard {...components[6]} />
-          </div>
-        </div>
-
-        {/* Architecture Flow */}
-        <div className={`mt-12 rounded-xl border-2 p-8 ${
-          isDark
-            ? 'bg-white/5 border-white/10 backdrop-blur-md'
-            : 'bg-white border-gray-200'
-        }`}>
-          <h2 className={`text-xl font-semibold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-            How It All Works Together
-          </h2>
-          <div className={`space-y-4 ${isDark ? 'text-white/80' : 'text-gray-700'}`}>
-            <div className="flex items-start gap-3">
-              <span className="flex-shrink-0 w-8 h-8 rounded-full bg-[#FF3621] text-white flex items-center justify-center text-sm font-bold">
-                1
-              </span>
-              <p>
-                <strong>User Interaction:</strong> Users interact with the React frontend to chat with the AI, view registered APIs, or explore the registry. The UI communicates with the FastAPI backend via auto-generated TypeScript client.
-              </p>
-            </div>
-            <div className="flex items-start gap-3">
-              <span className="flex-shrink-0 w-8 h-8 rounded-full bg-[#FF3621] text-white flex items-center justify-center text-sm font-bold">
-                2
-              </span>
-              <p>
-                <strong>Backend Processing:</strong> FastAPI receives requests and routes them appropriately. For AI chat, it forwards messages to Databricks Foundation Models with available MCP tools. For direct API operations, it queries Unity Catalog via SQL Warehouse.
-              </p>
-            </div>
-            <div className="flex items-start gap-3">
-              <span className="flex-shrink-0 w-8 h-8 rounded-full bg-[#FF3621] text-white flex items-center justify-center text-sm font-bold">
-                3
-              </span>
-              <p>
-                <strong>AI Decision Making:</strong> Databricks Foundation Models (Claude, Llama, DBRX, etc.) analyze the user's request and decide which MCP tools to invoke. The MCP server exposes specialized tools for API discovery, registration, validation, and querying the registry.
-              </p>
-            </div>
-            <div className="flex items-start gap-3">
-              <span className="flex-shrink-0 w-8 h-8 rounded-full bg-[#FF3621] text-white flex items-center justify-center text-sm font-bold">
-                4
-              </span>
-              <p>
-                <strong>Data Operations:</strong> MCP tools execute SQL queries against Unity Catalog to create HTTP Connections and call external APIs using http_request(). The api_http_registry table tracks all registered connections. All operations are tracked with MLflow tracing for observability and debugging.
-              </p>
-            </div>
-            <div className="flex items-start gap-3">
-              <span className="flex-shrink-0 w-8 h-8 rounded-full bg-[#FF3621] text-white flex items-center justify-center text-sm font-bold">
-                5
-              </span>
-              <p>
-                <strong>Response & Display:</strong> Results flow back through the layers: Unity Catalog → SQL Warehouse → MCP Tools → Foundation Models → FastAPI → React UI. Users see natural language responses with actionable insights about their APIs.
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Custom CSS for 3D flip effect */}
-      <style>{`
-        .perspective-1000 {
-          perspective: 1000px;
-        }
-        .transform-style-3d {
-          transform-style: preserve-3d;
-        }
-        .backface-hidden {
-          backface-visibility: hidden;
-          -webkit-backface-visibility: hidden;
-        }
-        .rotate-y-180 {
-          transform: rotateY(180deg);
-        }
-      `}</style>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

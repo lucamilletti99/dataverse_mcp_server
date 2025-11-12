@@ -81,28 +81,41 @@ def list_tables_impl(
 
 
 def describe_table_impl(table_name: str) -> dict:
-  """Implementation of describe_table tool."""
+  """Implementation of describe_table tool - keep it simple!"""
   try:
     client = get_dataverse_client()
     result = client.describe_table(table_name)
     
-    # Extract key information
-    attributes = []
-    for attr in result.get('Attributes', []):
-      attributes.append({
-        'logical_name': attr.get('LogicalName'),
-        'display_name': attr.get('DisplayName', {}).get('UserLocalizedLabel', {}).get('Label'),
-        'attribute_type': attr.get('AttributeType'),
-        'is_primary_id': attr.get('IsPrimaryId'),
+    print(f"🔍 describe_table_impl got result type: {type(result)}")
+    
+    if not result:
+      return {
+        'success': False,
+        'error': f"No metadata returned for table '{table_name}'",
+        'table_name': table_name,
+      }
+    
+    # Keep it simple - just extract the basics and let the LLM handle the rest
+    attributes = result.get('Attributes', []) or []
+    
+    # Simplify attribute extraction - just get the essentials
+    simplified_attrs = []
+    for attr in attributes[:50]:  # Limit to first 50 to keep response size reasonable
+      simplified_attrs.append({
+        'LogicalName': attr.get('LogicalName'),
+        'AttributeType': attr.get('AttributeType'),
+        'IsPrimaryId': attr.get('IsPrimaryId', False),
       })
     
     return {
       'success': True,
-      'table_name': result.get('LogicalName'),
-      'display_name': result.get('DisplayName', {}).get('UserLocalizedLabel', {}).get('Label'),
-      'attributes': attributes,
+      'table_name': result.get('LogicalName', table_name),
+      'attributes': simplified_attrs,
+      'attribute_count': len(attributes),
+      'message': f"Found {len(attributes)} attributes for table '{table_name}' (showing first 50)"
     }
   except Exception as e:
+    print(f"❌ describe_table_impl error: {str(e)}")
     return {
       'success': False,
       'error': str(e),
@@ -193,6 +206,32 @@ def update_record_impl(table_name: str, record_id: str, data: dict) -> dict:
       'table_name': table_name,
       'record_id': record_id,
       'message': f'Record updated successfully',
+    }
+  except Exception as e:
+    return {
+      'success': False,
+      'error': str(e),
+      'table_name': table_name,
+      'record_id': record_id,
+    }
+
+
+def delete_record_impl(table_name: str, record_id: str) -> dict:
+  """Implementation of delete_record tool - keep it simple!"""
+  try:
+    client = get_dataverse_client()
+    
+    # Get entity set name
+    entity_set_name = client.get_entity_set_name(table_name)
+    
+    # Delete record
+    result = client.delete_record(entity_set_name=entity_set_name, record_id=record_id)
+    
+    return {
+      'success': True,
+      'table_name': table_name,
+      'record_id': record_id,
+      'message': f'Record deleted successfully',
     }
   except Exception as e:
     return {

@@ -24,12 +24,12 @@ class DataverseClient:
         auth: DataverseAuth instance (creates new one if not provided)
         dataverse_host: Dataverse environment URL (or from env DATAVERSE_HOST)
     """
-    # Minimal logging - only log if there's an issue
-    dataverse_host_env = os.environ.get('DATAVERSE_HOST')
+    # Initialize auth first (it will load credentials from secrets or fallback)
+    self.auth = auth or DataverseAuth()
     
-    # WORKAROUND: Databricks Apps doesn't load app.yaml environment variables
-    # Use hardcoded fallback
-    self.dataverse_host = dataverse_host or os.environ.get('DATAVERSE_HOST') or 'https://org1bfe9c69.api.crm.dynamics.com'
+    # Get dataverse_host from auth object (which has the fallback logic)
+    self.dataverse_host = dataverse_host or os.environ.get('DATAVERSE_HOST') or self.auth.dataverse_host
+    
     if not self.dataverse_host:
       error_msg = (
           'DATAVERSE_HOST environment variable is not set. '
@@ -44,9 +44,6 @@ class DataverseClient:
 
     # Web API v9.2 base URL
     self.api_base = f'{self.dataverse_host}/api/data/v9.2/'
-
-    # Authentication
-    self.auth = auth or DataverseAuth()
 
   def _make_request(
     self,
@@ -171,19 +168,26 @@ class DataverseClient:
         
     Reference: https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/query-metadata-web-api
     """
-    # Query EntityDefinitions with attributes expanded
-    params = {
-      '$filter': f"LogicalName eq '{table_name}'",
-      '$expand': 'Attributes,Keys',
-    }
-
-    response = self._make_request('GET', 'EntityDefinitions', params=params)
-    data = response.json()
+    # Query specific entity by LogicalName (direct endpoint, no OData filters needed)
+    # EntityDefinitions doesn't support $filter, so we query by LogicalName directly
+    endpoint = f'EntityDefinitions(LogicalName=\'{table_name}\')?$expand=Attributes,Keys'
     
-    if not data.get('value'):
-      raise ValueError(f"Table '{table_name}' not found")
-    
-    return data['value'][0]
+    try:
+      response = self._make_request('GET', endpoint, timeout=60)
+      data = response.json()
+      
+      # Debug: log what we got
+      print(f"📦 describe_table response type: {type(data)}")
+      print(f"📦 describe_table response keys: {data.keys() if data else 'None'}")
+      
+      if not data:
+        raise ValueError(f"Empty response for table '{table_name}'")
+      
+      return data
+    except requests.exceptions.HTTPError as e:
+      if e.response.status_code == 404:
+        raise ValueError(f"Table '{table_name}' not found")
+      raise
 
   # ========================================
   # Record Operations (CRUD)
