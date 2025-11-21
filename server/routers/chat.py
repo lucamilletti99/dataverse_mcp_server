@@ -36,6 +36,14 @@ async def list_available_models() -> Dict[str, Any]:
             'type': 'chat'
         },
         {
+            'id': 'databricks-claude-sonnet-4-5',
+            'name': 'Claude Sonnet 4.5',
+            'provider': 'Anthropic',
+            'supports_tools': True,
+            'context_window': 200000,
+            'type': 'chat'
+        },
+        {
             'id': 'databricks-dbrx-instruct',
             'name': 'DBRX Instruct',
             'provider': 'Databricks',
@@ -49,6 +57,54 @@ async def list_available_models() -> Dict[str, Any]:
             'provider': 'Google',
             'supports_tools': True,
             'context_window': 8192,
+            'type': 'chat'
+        },
+        {
+            'id': 'databricks-gemini-2-5-flash',
+            'name': 'Gemini 2.5 Flash',
+            'provider': 'Google',
+            'supports_tools': True,
+            'context_window': 1000000,
+            'type': 'chat'
+        },
+        {
+            'id': 'databricks-gemini-2-5-pro',
+            'name': 'Gemini 2.5 Pro',
+            'provider': 'Google',
+            'supports_tools': True,
+            'context_window': 2000000,
+            'type': 'chat'
+        },
+        {
+            'id': 'databricks-gpt-5',
+            'name': 'GPT-5',
+            'provider': 'OpenAI',
+            'supports_tools': True,
+            'context_window': 128000,
+            'type': 'chat'
+        },
+        {
+            'id': 'databricks-gpt-5-1',
+            'name': 'GPT-5.1',
+            'provider': 'OpenAI',
+            'supports_tools': True,
+            'context_window': 128000,
+            'type': 'chat'
+        },
+        {
+            'id': 'databricks-gpt-5-mini',
+            'name': 'GPT-5 Mini',
+            'provider': 'OpenAI',
+            'supports_tools': True,
+            'context_window': 128000,
+            'type': 'chat'
+        },
+        {
+            'id': 'databricks-gpt-5-nano',
+            'name': 'GPT-5 Nano',
+            'provider': 'OpenAI',
+            'supports_tools': True,
+            'context_window': 128000,
             'type': 'chat'
         },
         {
@@ -142,38 +198,6 @@ async def list_available_models() -> Dict[str, Any]:
             'provider': 'Anthropic',
             'supports_tools': False,
             'context_window': 200000,
-            'type': 'chat'
-        },
-        {
-            'id': 'databricks-claude-sonnet-4-5',
-            'name': 'Claude Sonnet 4.5',
-            'provider': 'Anthropic',
-            'supports_tools': False,
-            'context_window': 200000,
-            'type': 'chat'
-        },
-        {
-            'id': 'databricks-gpt-5',
-            'name': 'GPT-5',
-            'provider': 'OpenAI',
-            'supports_tools': False,
-            'context_window': 128000,
-            'type': 'chat'
-        },
-        {
-            'id': 'databricks-gpt-5-mini',
-            'name': 'GPT-5 Mini',
-            'provider': 'OpenAI',
-            'supports_tools': False,
-            'context_window': 128000,
-            'type': 'chat'
-        },
-        {
-            'id': 'databricks-gpt-5-nano',
-            'name': 'GPT-5 Nano',
-            'provider': 'OpenAI',
-            'supports_tools': False,
-            'context_window': 128000,
             'type': 'chat'
         },
         {
